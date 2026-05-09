@@ -184,28 +184,32 @@ is_openclaw_plugin_installed() {
 install_plugin_via_cli() {
   local repo="$1"
   local name="$2"
-  local tmp_dir
 
-  tmp_dir="$(mktemp -d)"
-  printf "  Downloading plugin from github.com... "
-  curl -fsSL --connect-timeout 10 --max-time 60 \
-    "https://github.com/${repo}/archive/refs/heads/main.tar.gz" \
-    | tar xz -C "$tmp_dir" --strip-components=1 && printf "${GREEN}done${NC}\n" || {
-    printf "${YELLOW}FAILED${NC}\n"
-    error "Failed to download plugin from ${repo}."
-  }
-
-  local exit_code=0
-  (
-    cd "$tmp_dir"
-    if [[ "$name" == "hermes" ]]; then
-      hermes plugins install .
-    else
-      openclaw plugins install .
-    fi
-  ) || exit_code=$?
-  rm -rf "$tmp_dir"
-  return $exit_code
+  if [[ "$name" == "hermes" ]]; then
+    printf "  Installing Hermes approval plugin from github.com... "
+    hermes plugins install "$repo" && printf "${GREEN}done${NC}\n" || {
+      printf "${YELLOW}FAILED${NC}\n"
+      return 1
+    }
+    hermes plugins enable human-signoff-approval
+  else
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    printf "  Downloading plugin from github.com... "
+    curl -fsSL --connect-timeout 10 --max-time 60 \
+      "https://github.com/${repo}/archive/refs/heads/main.tar.gz" \
+      | tar xz -C "$tmp_dir" --strip-components=1 && printf "${GREEN}done${NC}\n" || {
+      printf "${YELLOW}FAILED${NC}\n"
+      rm -rf "$tmp_dir"
+      return 1
+    }
+    ( cd "$tmp_dir" && openclaw plugins install . ) || {
+      rm -rf "$tmp_dir"
+      return 1
+    }
+    rm -rf "$tmp_dir"
+  fi
+  return 0
 }
 
 # ─── Offer install-ca ────────────────────────────────────────────────────
