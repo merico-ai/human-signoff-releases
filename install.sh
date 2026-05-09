@@ -65,7 +65,7 @@ resolve_install_dir() {
   printf "  2) Use ${HOME}/.local/bin\n"
   printf "  3) Use current directory (${PWD})\n"
   printf "Choose [1/2/3] (default: 1): "
-  local answer
+  answer
   read -r answer
   case "${answer:-1}" in
     2)
@@ -123,7 +123,7 @@ install_binary() {
   else
     printf "Install to ${INSTALL_DIR}/${BINARY_NAME}? [Y/n] "
   fi
-  local answer
+  answer
   read -r answer
 
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
@@ -203,7 +203,7 @@ run_install_ca() {
   fi
 
   printf "Install CA certificate for HTTPS interception (requires sudo)? [Y/n] "
-  local answer
+  answer
   read -r answer
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
     local signoff_bin="${INSTALL_DIR}/signoff"
@@ -240,7 +240,7 @@ configure_gateway_proxy() {
     fi
 
     printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${plist_name}.plist? [Y/n] "
-    local answer
+    answer
     read -r answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
       for key in HTTP_PROXY HTTPS_PROXY; do
@@ -278,7 +278,7 @@ configure_gateway_proxy() {
     fi
 
     printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${unit_name} systemd service? [Y/n] "
-    local answer
+    answer
     read -r answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
       sudo mkdir -p "$dropin_dir"
@@ -319,7 +319,7 @@ header "Step 1: Download Signoff CLI"
 
 TAG=""
 printf "Enter release tag (leave blank for latest): "
-local tag_input
+tag_input
 read -r tag_input
 if [[ -n "$tag_input" ]]; then
   TAG="$tag_input"
@@ -343,7 +343,7 @@ elif is_hermes_plugin_installed; then
   HERMES_INSTALLED=true
 else
   printf "Install Hermes approval plugin? [y/N] "
-  local answer
+  answer
   read -r answer
   if [[ "$answer" =~ ^[Yy] ]]; then
     if install_plugin_via_cli "$HERMES_PLUGIN_REPO" "hermes"; then
@@ -370,7 +370,7 @@ elif is_openclaw_plugin_installed; then
   OPENCLAW_INSTALLED=true
 else
   printf "Install OpenClaw approval plugin? [y/N] "
-  local answer
+  answer
   read -r answer
   if [[ "$answer" =~ ^[Yy] ]]; then
     if install_plugin_via_cli "$OPENCLAW_PLUGIN_REPO" "openclaw"; then
