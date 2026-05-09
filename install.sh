@@ -187,34 +187,50 @@ run_install_ca() {
   fi
 }
 
-# ─── Print gateway proxy configuration guide ────────────────────────────
-print_proxy_config() {
+# ─── Configure gateway proxy ─────────────────────────────────────────────
+configure_gateway_proxy() {
   local agent_name="$1"   # "Hermes" or "OpenClaw"
 
-  printf "\n${CYAN}Configure ${agent_name} Gateway to use the proxy:${NC}\n"
-  printf "Add these environment variables:\n"
-  printf "  HTTP_PROXY=http://127.0.0.1:17771\n"
-  printf "  HTTPS_PROXY=http://127.0.0.1:17771\n"
-  printf "  NO_PROXY=localhost,127.0.0.1\n"
+  printf "\n${CYAN}Configure ${agent_name} Gateway proxy settings?${NC}\n"
 
   if [[ "$IS_MACOS" == true ]]; then
     local plist_name
+    local plist_path
     if [[ "$agent_name" == "Hermes" ]]; then
       plist_name="ai.hermes.gateway"
     else
       plist_name="ai.openclaw.gateway"
     fi
-    printf "\nmacOS — Edit ~/Library/LaunchAgents/${plist_name}.plist and add:\n"
-    printf "${YELLOW}  <key>EnvironmentVariables</key>\n"
-    printf "  <dict>\n"
-    printf "    <key>HTTP_PROXY</key>\n"
-    printf "    <string>http://127.0.0.1:17771</string>\n"
-    printf "    <key>HTTPS_PROXY</key>\n"
-    printf "    <string>http://127.0.0.1:17771</string>\n"
-    printf "    <key>NO_PROXY</key>\n"
-    printf "    <string>localhost,127.0.0.1</string>\n"
-    printf "  </dict>${NC}\n"
-    printf "Then restart: ${CYAN}launchctl bootout gui/\$(id -u)/${plist_name} && sleep 2 && launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/${plist_name}.plist${NC}\n"
+    plist_path="${HOME}/Library/LaunchAgents/${plist_name}.plist"
+
+    if [[ ! -f "$plist_path" ]]; then
+      warn "${plist_name}.plist not found at ${plist_path}"
+      printf "  Start the Gateway once to generate it, then re-run this script.\n"
+      return
+    fi
+
+    if /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HTTP_PROXY" "$plist_path" &>/dev/null \
+      && [[ "$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HTTP_PROXY" "$plist_path")" == "http://127.0.0.1:17771" ]]; then
+      info "${agent_name} Gateway proxy already configured"
+      return
+    fi
+
+    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${plist_name}.plist? [Y/n] "
+    local answer
+    read -r answer
+    if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
+      for key in HTTP_PROXY HTTPS_PROXY; do
+        /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:${key} http://127.0.0.1:17771" "$plist_path" 2>/dev/null \
+          || /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:${key} string http://127.0.0.1:17771" "$plist_path"
+      done
+      /usr/libexec/PlistBuddy -c "Set :EnvironmentVariables:NO_PROXY localhost,127.0.0.1" "$plist_path" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :EnvironmentVariables:NO_PROXY string localhost,127.0.0.1" "$plist_path"
+
+      launchctl bootout "gui/$(id -u)/${plist_name}" 2>/dev/null || true
+      sleep 1
+      launchctl bootstrap "gui/$(id -u)" "$plist_path" 2>/dev/null || true
+      info "${agent_name} Gateway proxy configured and service reloaded"
+    fi
   else
     local unit_name
     if [[ "$agent_name" == "Hermes" ]]; then
@@ -222,15 +238,41 @@ print_proxy_config() {
     else
       unit_name="openclaw-gateway"
     fi
-    printf "\nLinux — Configure systemd service:\n"
-    printf "  ${CYAN}sudo mkdir -p /etc/systemd/system/${unit_name}.service.d/${NC}\n"
-    printf "  ${CYAN}sudo tee /etc/systemd/system/${unit_name}.service.d/proxy.conf <<'EOF'${NC}\n"
-    printf "  ${CYAN}[Service]${NC}\n"
-    printf "  ${CYAN}Environment=HTTP_PROXY=http://127.0.0.1:17771${NC}\n"
-    printf "  ${CYAN}Environment=HTTPS_PROXY=http://127.0.0.1:17771${NC}\n"
-    printf "  ${CYAN}Environment=NO_PROXY=localhost,127.0.0.1${NC}\n"
-    printf "  ${CYAN}EOF${NC}\n"
-    printf "Then restart: ${CYAN}sudo systemctl daemon-reload && sudo systemctl restart ${unit_name}${NC}\n"
+
+    if ! systemctl list-units --type=service --all 2>/dev/null | grep -q "${unit_name}"; then
+      warn "${unit_name}.service not found in systemd"
+      printf "  Install ${agent_name} first, then re-run this script.\n"
+      return
+    fi
+
+    local dropin_dir="/etc/systemd/system/${unit_name}.service.d"
+    local dropin_file="${dropin_dir}/proxy.conf"
+
+    if [[ -f "$dropin_file" ]] && grep -q "HTTP_PROXY=http://127.0.0.1:17771" "$dropin_file" 2>/dev/null; then
+      info "${agent_name} Gateway proxy already configured"
+      return
+    fi
+
+    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${unit_name} systemd service? [Y/n] "
+    local answer
+    read -r answer
+    if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
+      sudo mkdir -p "$dropin_dir"
+      sudo tee "$dropin_file" >/dev/null <<'EOF'
+[Service]
+Environment=HTTP_PROXY=http://127.0.0.1:17771
+Environment=HTTPS_PROXY=http://127.0.0.1:17771
+Environment=NO_PROXY=localhost,127.0.0.1
+EOF
+      sudo systemctl daemon-reload
+      printf "Restart ${unit_name} now? [Y/n] "
+      local restart_answer
+      read -r restart_answer
+      if [[ -z "$restart_answer" || "$restart_answer" =~ ^[Yy] ]]; then
+        sudo systemctl restart "${unit_name}" || warn "Failed to restart ${unit_name}"
+      fi
+      info "${agent_name} Gateway proxy configured"
+    fi
   fi
 }
 
@@ -291,7 +333,7 @@ else
 fi
 
 if [[ "$HERMES_INSTALLED" == true ]]; then
-  print_proxy_config "Hermes"
+  configure_gateway_proxy "Hermes"
 fi
 
 # ─── Step 3: Optional OpenClaw plugin ───────────────────────────────────
@@ -318,7 +360,7 @@ else
 fi
 
 if [[ "$OPENCLAW_INSTALLED" == true ]]; then
-  print_proxy_config "OpenClaw"
+  configure_gateway_proxy "OpenClaw"
 fi
 
 # ─── Step 4: Install CA ──────────────────────────────────────────────────
