@@ -271,15 +271,16 @@ configure_gateway_proxy() {
       unit_name="openclaw-gateway"
     fi
 
-    local service_file
-    service_file="$(find /etc/systemd/system /usr/lib/systemd/system -name "${unit_name}.service" 2>/dev/null | head -n 1)"
-    if [[ -z "$service_file" ]]; then
-      warn "${unit_name}.service not found (checked: /etc/systemd/system, /usr/lib/systemd/system)"
+    local user_unit_dir="${HOME}/.config/systemd/user"
+    local service_file="${user_unit_dir}/${unit_name}.service"
+
+    if [[ ! -f "$service_file" ]]; then
+      warn "${unit_name}.service not found at ${service_file}"
       printf "  Install ${agent_name} first, then re-run this script.\n"
       return
     fi
 
-    local dropin_dir="/etc/systemd/system/${unit_name}.service.d"
+    local dropin_dir="${user_unit_dir}/${unit_name}.service.d"
     local dropin_file="${dropin_dir}/proxy.conf"
 
     if [[ -f "$dropin_file" ]] && grep -q "HTTP_PROXY=http://127.0.0.1:17771" "$dropin_file" 2>/dev/null; then
@@ -287,23 +288,23 @@ configure_gateway_proxy() {
       return
     fi
 
-    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${unit_name} systemd service? [Y/n] "
+    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${unit_name} systemd user service? [Y/n] "
     local answer
     read -r answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
-      sudo mkdir -p "$dropin_dir"
-      sudo tee "$dropin_file" >/dev/null <<'EOF'
+      mkdir -p "$dropin_dir"
+      tee "$dropin_file" >/dev/null <<'EOF'
 [Service]
 Environment=HTTP_PROXY=http://127.0.0.1:17771
 Environment=HTTPS_PROXY=http://127.0.0.1:17771
 Environment=NO_PROXY=localhost,127.0.0.1
 EOF
-      sudo systemctl daemon-reload
+      systemctl --user daemon-reload
       printf "Restart ${unit_name} now? [Y/n] "
       local restart_answer
       read -r restart_answer
       if [[ -z "$restart_answer" || "$restart_answer" =~ ^[Yy] ]]; then
-        sudo systemctl restart "${unit_name}" || warn "Failed to restart ${unit_name}"
+        systemctl --user restart "${unit_name}" || warn "Failed to restart ${unit_name}"
       fi
       info "${agent_name} Gateway proxy configured"
     fi
