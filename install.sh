@@ -121,7 +121,7 @@ install_binary() {
   if [[ -x "${INSTALL_DIR}/${BINARY_NAME}" ]]; then
     printf "signoff already installed at ${INSTALL_DIR}/${BINARY_NAME}. Upgrade? [Y/n] "
   else
-    printf "Install to ${INSTALL_DIR}/${BINARY_NAME}? [Y/n] "
+    printf "Install signoff binary to ${INSTALL_DIR}/? [Y/n] "
   fi
   local answer
   read -r answer
