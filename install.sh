@@ -186,11 +186,12 @@ install_plugin_via_cli() {
   local name="$2"
 
   if [[ "$name" == "hermes" ]]; then
-    printf "  Installing Hermes approval plugin from github.com... "
+    printf "  Running: hermes plugins install %s\n" "$repo" >&2
     hermes plugins install "$repo" && printf "${GREEN}done${NC}\n" || {
       printf "${YELLOW}FAILED${NC}\n"
       return 1
     }
+    printf "  Running: hermes plugins enable human-signoff-approval\n" >&2
     hermes plugins enable human-signoff-approval
   else
     local tmp_dir
