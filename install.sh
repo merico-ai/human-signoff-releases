@@ -39,9 +39,20 @@ detect_platform() {
 
 # ─── Get latest release tag from public repo ────────────────────────────
 get_latest_tag() {
-  curl -fsSL --connect-timeout 10 --max-time 30 \
+  printf "  Fetching latest release info from github.com... "
+  local tag
+  tag=$(curl -fsSL --connect-timeout 10 --max-time 30 \
     "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
-    | grep '"tag_name"' | head -n 1 | sed 's/.*"tag_name": "\(.*\)",/\1/'
+    | grep '"tag_name"' | head -n 1 | sed 's/.*"tag_name": "\(.*\)",/\1/') || {
+    printf "FAILED\n"
+    return 1
+  }
+  if [[ -z "$tag" ]]; then
+    printf "FAILED\n"
+    return 1
+  fi
+  printf "${GREEN}${tag}${NC}\n"
+  echo "$tag"
 }
 
 # ─── Resolve install directory ───────────────────────────────────────────
@@ -82,18 +93,27 @@ install_binary() {
   local tmp_dir
   tmp_dir="$(mktemp -d)"
 
-  info "Downloading signoff-cli-${tag}-${GOOS}-${GOARCH}.zip ..."
+  printf "  Downloading signoff-cli-${tag}-${GOOS}-${GOARCH}.zip ... "
   curl -fsSL --connect-timeout 10 --max-time 120 \
     "https://github.com/${RELEASES_REPO}/releases/download/${tag}/signoff-cli-${tag}-${GOOS}-${GOARCH}.zip" \
-    -o "${tmp_dir}/signoff-cli.zip"
+    -o "${tmp_dir}/signoff-cli.zip" && printf "${GREEN}done${NC}\n" || {
+    printf "${YELLOW}FAILED${NC}\n"
+    error "Download failed. Possible causes:
+    - Network cannot reach github.com
+    - Release ${tag} does not exist in ${RELEASES_REPO}
+    - The zip file for ${GOOS}/${GOARCH} is missing
+  Try specifying a tag manually, or check https://github.com/${RELEASES_REPO}/releases"
+  }
 
-  info "Extracting..."
-  unzip -qo "${tmp_dir}/signoff-cli.zip" -d "${tmp_dir}/extracted"
+  printf "  Extracting... "
+  unzip -qo "${tmp_dir}/signoff-cli.zip" -d "${tmp_dir}/extracted" && printf "${GREEN}done${NC}\n" || {
+    error "Failed to extract zip. The download may be corrupted."
+  }
 
   local binary_src
   binary_src="$(find "${tmp_dir}/extracted" -name "${BINARY_NAME}" -type f | head -n 1)"
   if [[ -z "$binary_src" ]]; then
-    error "Binary not found in the downloaded package."
+    error "Binary '${BINARY_NAME}' not found in the downloaded package."
   fi
 
   chmod +x "$binary_src"
@@ -155,9 +175,13 @@ install_plugin_via_cli() {
   local tmp_dir
 
   tmp_dir="$(mktemp -d)"
+  printf "  Downloading plugin from github.com... "
   curl -fsSL --connect-timeout 10 --max-time 60 \
     "https://github.com/${repo}/archive/refs/heads/main.tar.gz" \
-    | tar xz -C "$tmp_dir" --strip-components=1
+    | tar xz -C "$tmp_dir" --strip-components=1 && printf "${GREEN}done${NC}\n" || {
+    printf "${YELLOW}FAILED${NC}\n"
+    error "Failed to download plugin from ${repo}."
+  }
 
   local exit_code=0
   (
@@ -291,7 +315,7 @@ IS_MACOS=${IS_MACOS:-false}
 info "Detected platform: ${GOOS}/${GOARCH}"
 
 # ─── Step 1: Get latest release tag ──────────────────────────────────────
-header "Downloading Signoff CLI"
+header "Step 1: Download Signoff CLI"
 
 TAG=""
 printf "Enter release tag (leave blank for latest): "
@@ -299,19 +323,18 @@ local tag_input
 read -r tag_input
 if [[ -n "$tag_input" ]]; then
   TAG="$tag_input"
+  info "Using tag: ${TAG}"
 else
-  TAG="$(get_latest_tag)"
-  if [[ -z "$TAG" ]]; then
+  TAG="$(get_latest_tag)" || {
     error "Could not determine latest release. Re-run and specify a tag manually."
-  fi
-  info "Latest release: ${TAG}"
+  }
 fi
 
 install_binary "$TAG"
 
 # ─── Step 2: Optional Hermes plugin ──────────────────────────────────────
 HERMES_INSTALLED=false
-header "Hermes Approval Plugin"
+header "Step 2: Hermes Approval Plugin"
 
 if ! command -v hermes &>/dev/null; then
   warn "Hermes not found. To install the Hermes plugin, install Hermes first."
@@ -338,7 +361,7 @@ fi
 
 # ─── Step 3: Optional OpenClaw plugin ───────────────────────────────────
 OPENCLAW_INSTALLED=false
-header "OpenClaw Approval Plugin"
+header "Step 3: OpenClaw Approval Plugin"
 
 if ! command -v openclaw &>/dev/null; then
   warn "OpenClaw not found. To install the OpenClaw plugin, install OpenClaw first."
@@ -365,7 +388,7 @@ fi
 
 # ─── Step 4: Install CA ──────────────────────────────────────────────────
 if [[ "$HERMES_INSTALLED" == true || "$OPENCLAW_INSTALLED" == true ]]; then
-  header "CA Certificate"
+  header "Step 4: CA Certificate"
   run_install_ca
 fi
 
