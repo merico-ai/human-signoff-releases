@@ -39,19 +39,19 @@ detect_platform() {
 
 # ─── Get latest release tag from public repo ────────────────────────────
 get_latest_tag() {
-  printf "  Fetching latest release info from github.com... "
+  printf "  Fetching latest release info from github.com... " >&2
   local tag
   tag=$(curl -fsSL --connect-timeout 10 --max-time 30 \
     "https://api.github.com/repos/${RELEASES_REPO}/releases/latest" \
     | grep '"tag_name"' | head -n 1 | sed 's/.*"tag_name": "\(.*\)",/\1/') || {
-    printf "FAILED\n"
+    printf "FAILED\n" >&2
     return 1
   }
   if [[ -z "$tag" ]]; then
-    printf "FAILED\n"
+    printf "FAILED\n" >&2
     return 1
   fi
-  printf "${GREEN}${tag}${NC}\n"
+  printf "${GREEN}${tag}${NC}\n" >&2
   echo "$tag"
 }
 
