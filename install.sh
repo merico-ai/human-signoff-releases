@@ -152,11 +152,8 @@ install_binary() {
 
 # ─── Check Hermes plugin installed ───────────────────────────────────────
 is_hermes_plugin_installed() {
-  if [[ -f "${HOME}/.hermes/plugins/human-signoff-approval/plugin.yaml" ]]; then
-    return 0
-  fi
   if command -v hermes &>/dev/null; then
-    if hermes plugins list 2>/dev/null | grep -q "human-signoff-approval"; then
+    if timeout 5 hermes plugins list 2>/dev/null | grep -q "human-signoff-approval"; then
       return 0
     fi
   fi
@@ -165,11 +162,8 @@ is_hermes_plugin_installed() {
 
 # ─── Check OpenClaw plugin installed ─────────────────────────────────────
 is_openclaw_plugin_installed() {
-  if [[ -f "${HOME}/.openclaw/plugins/human-signoff-approval/openclaw.plugin.json" ]]; then
-    return 0
-  fi
   if command -v openclaw &>/dev/null; then
-    if openclaw plugins list 2>/dev/null | grep -q "human-signoff-approval"; then
+    if timeout 5 openclaw plugins list 2>/dev/null | grep -q "human-signoff-approval"; then
       return 0
     fi
   fi
