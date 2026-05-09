@@ -11,6 +11,7 @@ HERMES_PLUGIN_REPO="merico-ai/hermes-plugin-human-signoff-approval"
 OPENCLAW_PLUGIN_REPO="merico-ai/openclaw-human-signoff"
 BINARY_NAME="signoff"
 INSTALL_DIR="/usr/local/bin"
+CACHE_DIR="${HOME}/.cache/signoff"
 
 # ─── Colors ──────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
@@ -90,28 +91,35 @@ install_binary() {
 
   resolve_install_dir
 
-  local tmp_dir
-  tmp_dir="$(mktemp -d)"
+  local zip_name="signoff-cli-${tag}-${GOOS}-${GOARCH}.zip"
+  local zip_path="${CACHE_DIR}/${zip_name}"
 
-  printf "  Downloading signoff-cli-${tag}-${GOOS}-${GOARCH}.zip ... "
-  curl -fsSL --connect-timeout 10 --max-time 120 \
-    "https://github.com/${RELEASES_REPO}/releases/download/${tag}/signoff-cli-${tag}-${GOOS}-${GOARCH}.zip" \
-    -o "${tmp_dir}/signoff-cli.zip" && printf "${GREEN}done${NC}\n" || {
-    printf "${YELLOW}FAILED${NC}\n"
-    error "Download failed. Possible causes:
-    - Network cannot reach github.com
-    - Release ${tag} does not exist in ${RELEASES_REPO}
-    - The zip file for ${GOOS}/${GOARCH} is missing
-  Try specifying a tag manually, or check https://github.com/${RELEASES_REPO}/releases"
-  }
+  if [[ -f "$zip_path" ]]; then
+    printf "  Using cached ${zip_name}\n"
+  else
+    printf "  Downloading ${zip_name} ... "
+    mkdir -p "$CACHE_DIR"
+    curl -fsSL --connect-timeout 10 --max-time 120 \
+      "https://github.com/${RELEASES_REPO}/releases/download/${tag}/${zip_name}" \
+      -o "${zip_path}" && printf "${GREEN}done${NC}\n" || {
+      printf "${YELLOW}FAILED${NC}\n"
+      error "Download failed. Possible causes:
+      - Network cannot reach github.com
+      - Release ${tag} does not exist in ${RELEASES_REPO}
+      - The zip file for ${GOOS}/${GOARCH} is missing
+    Try specifying a tag manually, or check https://github.com/${RELEASES_REPO}/releases"
+    }
+  fi
 
   printf "  Extracting... "
-  unzip -qo "${tmp_dir}/signoff-cli.zip" -d "${tmp_dir}/extracted" && printf "${GREEN}done${NC}\n" || {
+  local extract_dir
+  extract_dir="$(mktemp -d)"
+  unzip -qo "$zip_path" -d "$extract_dir" && printf "${GREEN}done${NC}\n" || {
     error "Failed to extract zip. The download may be corrupted."
   }
 
   local binary_src
-  binary_src="$(find "${tmp_dir}/extracted" -name "${BINARY_NAME}" -type f | head -n 1)"
+  binary_src="$(find "${extract_dir}" -name "${BINARY_NAME}" -type f | head -n 1)"
   if [[ -z "$binary_src" ]]; then
     error "Binary '${BINARY_NAME}' not found in the downloaded package."
   fi
@@ -139,7 +147,7 @@ install_binary() {
     warn "Install later: sudo cp ${PWD}/${BINARY_NAME} ${INSTALL_DIR}/${BINARY_NAME}"
   fi
 
-  rm -rf "$tmp_dir"
+  rm -rf "$extract_dir"
 }
 
 # ─── Check Hermes plugin installed ───────────────────────────────────────
@@ -263,8 +271,10 @@ configure_gateway_proxy() {
       unit_name="openclaw-gateway"
     fi
 
-    if ! systemctl list-units --type=service --all 2>/dev/null | grep -q "${unit_name}"; then
-      warn "${unit_name}.service not found in systemd"
+    local service_file
+    service_file="$(find /etc/systemd/system /usr/lib/systemd/system -name "${unit_name}.service" 2>/dev/null | head -n 1)"
+    if [[ -z "$service_file" ]]; then
+      warn "${unit_name}.service not found (checked: /etc/systemd/system, /usr/lib/systemd/system)"
       printf "  Install ${agent_name} first, then re-run this script.\n"
       return
     fi
