@@ -26,8 +26,8 @@ header() { printf "\n${CYAN}══ %s ══${NC}\n" "$*"; }
 # ─── Platform detection ──────────────────────────────────────────────────
 detect_platform() {
   case "$(uname -s)" in
-    Linux)  GOOS="linux" ;;
-    Darwin) GOOS="darwin" ;;
+    Linux)  GOOS="linux"; IS_LINUX=true; IS_MACOS=false ;;
+    Darwin) GOOS="darwin"; IS_LINUX=false; IS_MACOS=true ;;
     *)      error "Unsupported OS: $(uname -s)" ;;
   esac
   case "$(uname -m)" in
@@ -172,6 +172,68 @@ install_plugin_via_cli() {
   return $exit_code
 }
 
+# ─── Offer install-ca ────────────────────────────────────────────────────
+run_install_ca() {
+  if ! command -v signoff &>/dev/null && [[ ! -x "${INSTALL_DIR}/signoff" ]]; then
+    return
+  fi
+
+  printf "Install CA certificate for HTTPS interception (requires sudo)? [Y/n] "
+  local answer
+  read -r answer
+  if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
+    local signoff_bin="${INSTALL_DIR}/signoff"
+    sudo "$signoff_bin" install-ca && info "CA certificate installed" || warn "CA installation failed"
+  fi
+}
+
+# ─── Print gateway proxy configuration guide ────────────────────────────
+print_proxy_config() {
+  local agent_name="$1"   # "Hermes" or "OpenClaw"
+
+  printf "\n${CYAN}Configure ${agent_name} Gateway to use the proxy:${NC}\n"
+  printf "Add these environment variables:\n"
+  printf "  HTTP_PROXY=http://127.0.0.1:17771\n"
+  printf "  HTTPS_PROXY=http://127.0.0.1:17771\n"
+  printf "  NO_PROXY=localhost,127.0.0.1\n"
+
+  if [[ "$IS_MACOS" == true ]]; then
+    local plist_name
+    if [[ "$agent_name" == "Hermes" ]]; then
+      plist_name="ai.hermes.gateway"
+    else
+      plist_name="ai.openclaw.gateway"
+    fi
+    printf "\nmacOS — Edit ~/Library/LaunchAgents/${plist_name}.plist and add:\n"
+    printf "${YELLOW}  <key>EnvironmentVariables</key>\n"
+    printf "  <dict>\n"
+    printf "    <key>HTTP_PROXY</key>\n"
+    printf "    <string>http://127.0.0.1:17771</string>\n"
+    printf "    <key>HTTPS_PROXY</key>\n"
+    printf "    <string>http://127.0.0.1:17771</string>\n"
+    printf "    <key>NO_PROXY</key>\n"
+    printf "    <string>localhost,127.0.0.1</string>\n"
+    printf "  </dict>${NC}\n"
+    printf "Then restart: ${CYAN}launchctl bootout gui/\$(id -u)/${plist_name} && sleep 2 && launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/${plist_name}.plist${NC}\n"
+  else
+    local unit_name
+    if [[ "$agent_name" == "Hermes" ]]; then
+      unit_name="hermes-gateway"
+    else
+      unit_name="openclaw-gateway"
+    fi
+    printf "\nLinux — Configure systemd service:\n"
+    printf "  ${CYAN}sudo mkdir -p /etc/systemd/system/${unit_name}.service.d/${NC}\n"
+    printf "  ${CYAN}sudo tee /etc/systemd/system/${unit_name}.service.d/proxy.conf <<'EOF'${NC}\n"
+    printf "  ${CYAN}[Service]${NC}\n"
+    printf "  ${CYAN}Environment=HTTP_PROXY=http://127.0.0.1:17771${NC}\n"
+    printf "  ${CYAN}Environment=HTTPS_PROXY=http://127.0.0.1:17771${NC}\n"
+    printf "  ${CYAN}Environment=NO_PROXY=localhost,127.0.0.1${NC}\n"
+    printf "  ${CYAN}EOF${NC}\n"
+    printf "Then restart: ${CYAN}sudo systemctl daemon-reload && sudo systemctl restart ${unit_name}${NC}\n"
+  fi
+}
+
 # ══════════════════════════════════════════════════════════════════════════
 # Main
 # ══════════════════════════════════════════════════════════════════════════
@@ -182,6 +244,8 @@ printf "${CYAN}║         Human Signoff CLI Installer                 ║${NC}\
 printf "${CYAN}╚══════════════════════════════════════════════════════╝${NC}\n"
 
 detect_platform
+IS_LINUX=${IS_LINUX:-false}
+IS_MACOS=${IS_MACOS:-false}
 info "Detected platform: ${GOOS}/${GOARCH}"
 
 # ─── Step 1: Get latest release tag ──────────────────────────────────────
@@ -204,12 +268,14 @@ fi
 install_binary "$TAG"
 
 # ─── Step 2: Optional Hermes plugin ──────────────────────────────────────
+HERMES_INSTALLED=false
 header "Hermes Approval Plugin"
 
 if ! command -v hermes &>/dev/null; then
   warn "Hermes not found. To install the Hermes plugin, install Hermes first."
 elif is_hermes_plugin_installed; then
   info "Hermes approval plugin already installed"
+  HERMES_INSTALLED=true
 else
   printf "Install Hermes approval plugin? [y/N] "
   local answer
@@ -217,19 +283,26 @@ else
   if [[ "$answer" =~ ^[Yy] ]]; then
     if install_plugin_via_cli "$HERMES_PLUGIN_REPO" "hermes"; then
       info "Hermes approval plugin installed"
+      HERMES_INSTALLED=true
     else
       error "Hermes plugin installation failed"
     fi
   fi
 fi
 
-# ─── Step 3: Optional OpenClaw plugin ────────────────────────────────────
+if [[ "$HERMES_INSTALLED" == true ]]; then
+  print_proxy_config "Hermes"
+fi
+
+# ─── Step 3: Optional OpenClaw plugin ───────────────────────────────────
+OPENCLAW_INSTALLED=false
 header "OpenClaw Approval Plugin"
 
 if ! command -v openclaw &>/dev/null; then
   warn "OpenClaw not found. To install the OpenClaw plugin, install OpenClaw first."
 elif is_openclaw_plugin_installed; then
   info "OpenClaw approval plugin already installed"
+  OPENCLAW_INSTALLED=true
 else
   printf "Install OpenClaw approval plugin? [y/N] "
   local answer
@@ -237,19 +310,29 @@ else
   if [[ "$answer" =~ ^[Yy] ]]; then
     if install_plugin_via_cli "$OPENCLAW_PLUGIN_REPO" "openclaw"; then
       info "OpenClaw approval plugin installed"
+      OPENCLAW_INSTALLED=true
     else
       error "OpenClaw plugin installation failed"
     fi
   fi
 fi
 
+if [[ "$OPENCLAW_INSTALLED" == true ]]; then
+  print_proxy_config "OpenClaw"
+fi
+
+# ─── Step 4: Install CA ──────────────────────────────────────────────────
+if [[ "$HERMES_INSTALLED" == true || "$OPENCLAW_INSTALLED" == true ]]; then
+  header "CA Certificate"
+  run_install_ca
+fi
+
 # ─── Done ────────────────────────────────────────────────────────────────
 printf "\n${GREEN}╔══════════════════════════════════════════════════════╗${NC}\n"
 printf "${GREEN}║       Installation complete!                         ║${NC}\n"
 printf "${GREEN}╚══════════════════════════════════════════════════════╝${NC}\n"
-printf "\nNext steps:\n"
+printf "\nQuick start:\n"
 printf "  1. ${CYAN}signoff config set server_url https://your-server.com${NC}\n"
 printf "  2. ${CYAN}signoff login${NC}\n"
-printf "  3. ${CYAN}sudo signoff install-ca${NC}\n"
-printf "  4. ${CYAN}signoff run${NC}\n"
+printf "  3. ${CYAN}signoff run${NC}              (start the proxy)\n"
 printf "\nFor more: ${CYAN}https://github.com/${RELEASES_REPO}${NC}\n"
