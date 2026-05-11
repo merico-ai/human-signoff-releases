@@ -167,19 +167,11 @@ Re-run the same curl command. Now that the approval is granted, the request pass
 proxy_allow fingerprint=... path=/repos/owner/repo/deployments
 ```
 
-### 10. Route Traffic Through the Proxy (for AI Agents)
+### 10. Configure Your AI Agent
 
-Once verification is complete, configure your AI agent to use the proxy:
+Once verification is complete, configure your AI agent's HTTP proxy to `http://127.0.0.1:17771`. Claude Code automatically works when the `HTTP_PROXY` / `HTTPS_PROXY` environment variables are set.
 
-```bash
-export HTTP_PROXY=http://127.0.0.1:17771
-export HTTPS_PROXY=http://127.0.0.1:17771
-export NO_PROXY=localhost,127.0.0.1
-```
-
-Claude Code automatically respects these environment variables and routes its API calls through the proxy.
-
-For agent frameworks with plugin support, run `bash install.sh` again and select the plugin installation option, or install manually:
+If you skipped plugin installation during `bash install.sh`, you can install manually:
 
 - **Hermes**: `hermes plugins install merico-ai/hermes-plugin-human-signoff-approval`
 - **OpenClaw**: `openclaw plugins install merico-ai/openclaw-human-signoff`
