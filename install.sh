@@ -150,35 +150,43 @@ install_binary() {
   rm -rf "$extract_dir"
 }
 
-# ─── Check Hermes plugin installed ───────────────────────────────────────
-is_hermes_plugin_installed() {
-  if command -v hermes &>/dev/null; then
-    printf "  [debug] running: hermes plugins list\n" >&2
-    local list_output
-    list_output="$(timeout 60 hermes plugins list 2>&1)"
-    local list_exit=$?
-    if echo "$list_output" | grep -q "human-signoff-appro"; then
+# ─── Check plugin installed for a given agent CLI ────────────────────────
+# Tries --json first (clean, unambiguous). Falls back to text output with
+# warning lines filtered out, because raw `plugins list` may print a
+# "Config warnings" block that references the plugin id even when it's
+# uninstalled (stale config entry), which false-positives a naive grep.
+is_plugin_installed_for() {
+  local agent="$1"
+  if ! command -v "$agent" &>/dev/null; then
+    return 1
+  fi
+
+  printf "  [debug] running: %s plugins list --json\n" "$agent" >&2
+  local json_output
+  json_output="$("$agent" plugins list --json 2>/dev/null)"
+  local json_exit=$?
+  if [[ $json_exit -eq 0 && -n "$json_output" ]]; then
+    if echo "$json_output" | grep -Eq '"id"[[:space:]]*:[[:space:]]*"human-signoff-approval"'; then
       return 0
     fi
-    printf "  [debug] hermes plugins list exit=%d, output:\n%s\n" "$list_exit" "$list_output" >&2
+    return 1
+  fi
+
+  printf "  [debug] --json unsupported (exit=%d), falling back to text parse\n" "$json_exit" >&2
+  local text_output
+  text_output="$("$agent" plugins list 2>&1)"
+  if echo "$text_output" \
+      | grep -v "plugin not found" \
+      | grep -v "stale config" \
+      | grep -v "plugins\.entries\." \
+      | grep -q "human-signoff-appro"; then
+    return 0
   fi
   return 1
 }
 
-# ─── Check OpenClaw plugin installed ─────────────────────────────────────
-is_openclaw_plugin_installed() {
-  if command -v openclaw &>/dev/null; then
-    printf "  [debug] running: openclaw plugins list\n" >&2
-    local list_output
-    list_output="$(timeout 60 openclaw plugins list 2>&1)"
-    local list_exit=$?
-    if echo "$list_output" | grep -q "human-signoff-appro"; then
-      return 0
-    fi
-    printf "  [debug] openclaw plugins list exit=%d, output:\n%s\n" "$list_exit" "$list_output" >&2
-  fi
-  return 1
-}
+is_hermes_plugin_installed()   { is_plugin_installed_for hermes; }
+is_openclaw_plugin_installed() { is_plugin_installed_for openclaw; }
 
 # ─── Install agent plugin via CLI ────────────────────────────────────────
 install_plugin_via_cli() {
