@@ -166,7 +166,11 @@ is_plugin_installed_for() {
   json_output="$("$agent" plugins list --json 2>/dev/null)"
   local json_exit=$?
   if [[ $json_exit -eq 0 && -n "$json_output" ]]; then
-    if echo "$json_output" | grep -Eq '"id"[[:space:]]*:[[:space:]]*"human-signoff-approval"'; then
+    # Use here-string instead of `echo | grep` to avoid SIGPIPE under
+    # `set -o pipefail`: grep -q exits as soon as it matches, and the
+    # upstream echo gets killed with 141, which pipefail then treats
+    # as failure and falsely reports the plugin as not installed.
+    if grep -Eq '"id"[[:space:]]*:[[:space:]]*"human-signoff-approval"' <<< "$json_output"; then
       return 0
     fi
     return 1
@@ -175,8 +179,7 @@ is_plugin_installed_for() {
   printf "  [debug] --json unsupported (exit=%d), falling back to text parse\n" "$json_exit" >&2
   local text_output
   text_output="$("$agent" plugins list 2>&1)"
-  if echo "$text_output" \
-      | grep -v "plugin not found" \
+  if grep -v "plugin not found" <<< "$text_output" \
       | grep -v "stale config" \
       | grep -v "plugins\.entries\." \
       | grep -q "human-signoff-appro"; then
