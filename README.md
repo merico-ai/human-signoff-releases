@@ -55,26 +55,15 @@ Rules define which API requests should be intercepted for approval. Go to the **
 https://demo.signoff.bio/#/rules
 ```
 
-Click **Add Rule** and configure at minimum:
+Click **Add Rule** and enter these minimum fields to intercept any POST request to GitHub API:
 
 | Field | Example | Description |
 |---|---|---|
-| Name | `Protect production deploy` | A recognizable name |
+| Name | `GitHub POST` | A recognizable name |
 | Platform | `github` | The platform this rule targets |
 | Hosts | `api.github.com` | Target hostnames (one per line) |
-| Path Pattern | `/repos/.*/deployments` | Regex pattern to match request paths |
+| Path Pattern | `.*` | Match all paths (regex) |
 | HTTP Methods | `POST` | HTTP methods to intercept (one per line) |
-
-Advanced options include:
-
-- **Query params** — Filter by specific query parameter values
-- **Fingerprint mode** — Controls how requests are grouped for deduplication:
-  - `Path + Query` (default) — group by path and query params
-  - `Path only` — group by path only, ignore query params
-  - `Path + Body` — include request body in fingerprint
-  - `Path + Query + Body` — include both query and body
-- **Resource type / ID** — Display information shown on the approval page
-- **Action type** — Human-readable action name shown during approval
 
 Click **Save** when done. The CLI will pick up the new rules within 10 seconds.
 
@@ -85,12 +74,11 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 bash install.sh
 ```
 
-The installer will:
+The installer will guide you through:
 
-1. Detect your OS and architecture
-2. Download the latest binary to `/usr/local/bin/signoff`
-3. Optionally install the Hermes or OpenClaw approval plugin
-4. Optionally install the CA certificate for HTTPS interception
+- Binary installation to `/usr/local/bin/signoff`
+- CA certificate installation for HTTPS interception (optional)
+- AI agent plugin installation (optional)
 
 Verify installation:
 
@@ -99,8 +87,6 @@ signoff --help
 ```
 
 ### 5. Login from CLI
-
-Configure the server URL and login:
 
 ```bash
 signoff config set server_url https://demo.signoff.bio
@@ -115,41 +101,7 @@ Check login status:
 signoff status
 ```
 
-### 6. Install the CA Certificate
-
-For the proxy to intercept HTTPS traffic (required for rule matching), install the CA certificate:
-
-```bash
-sudo signoff install-ca
-```
-
-This trusts the signoff CA on your system, allowing the proxy to decrypt and inspect HTTPS requests.
-
-### 7. Install an Agent Plugin (Optional)
-
-Signoff integrates with AI agent frameworks to automatically route traffic through the proxy.
-
-#### Hermes Plugin
-
-If you have [Hermes](https://github.com/merico-ai/hermes) installed:
-
-```bash
-hermes plugins install merico-ai/hermes-plugin-human-signoff-approval
-hermes plugins enable human-signoff-approval
-```
-
-#### OpenClaw Plugin
-
-If you have [OpenClaw](https://github.com/merico-ai/openclaw) installed:
-
-```bash
-openclaw plugins install merico-ai/openclaw-human-signoff
-openclaw plugins enable human-signoff-approval
-```
-
-The installer script (`install.sh`) can also handle plugin installation for you.
-
-### 8. Start the Proxy
+### 6. Start the Proxy
 
 ```bash
 signoff run
@@ -166,9 +118,58 @@ Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 
 The proxy runs as a background service. Use `signoff stop` to stop it, `signoff logs` to view logs, and `signoff status` to check if it's running.
 
-### 9. Route Traffic Through the Proxy
+### 7. Verify Interception
 
-Set your HTTP client's proxy to `http://127.0.0.1:17771`:
+Set the proxy environment variables and send a test request:
+
+```bash
+export HTTP_PROXY=http://127.0.0.1:17771
+export HTTPS_PROXY=http://127.0.0.1:17771
+
+curl -sv -X POST https://api.github.com/repos/owner/repo/deployments \
+  -H "Content-Type: application/json" \
+  -d '{"ref": "main"}' 2>&1
+```
+
+Expected result — the request is blocked with a `403` response containing an `approval_url`:
+
+```json
+{"error":{"code":"RULE_MATCHED","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/..."}
+```
+
+Check the proxy logs to confirm:
+
+```bash
+signoff logs
+```
+
+You should see:
+
+```
+proxy_request method=POST host=api.github.com path=/repos/owner/repo/deployments
+proxy_block fingerprint=... status=pending reason=RULE_MATCHED path=/repos/owner/repo/deployments
+```
+
+### 8. Approve in Browser
+
+1. Open the `approval_url` from the block response in your browser
+2. Review the request details — resource, action, and timing
+3. Click **Approve with Passkey**
+4. Complete the system Passkey prompt (Touch ID / Face ID / system password)
+
+After approval, the original request can proceed.
+
+### 9. Retry the Command
+
+Re-run the same curl command. Now that the approval is granted, the request passes through:
+
+```
+proxy_allow fingerprint=... path=/repos/owner/repo/deployments
+```
+
+### 10. Route Traffic Through the Proxy (for AI Agents)
+
+Once verification is complete, configure your AI agent to use the proxy:
 
 ```bash
 export HTTP_PROXY=http://127.0.0.1:17771
@@ -176,44 +177,12 @@ export HTTPS_PROXY=http://127.0.0.1:17771
 export NO_PROXY=localhost,127.0.0.1
 ```
 
-For AI agents, configure the proxy in the agent's settings. For example, Claude Code automatically works when the `HTTPS_PROXY` environment variable is set.
+Claude Code automatically respects these environment variables and routes its API calls through the proxy.
 
-### 10. Trigger an Interception
+For agent frameworks with plugin support, run `bash install.sh` again and select the plugin installation option, or install manually:
 
-Execute a command that matches one of your rules. For example, if you created a rule matching `POST api.github.com/repos/.*/deployments`:
-
-```bash
-curl -X POST https://api.github.com/repos/my-org/my-repo/deployments \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"ref": "main"}'
-```
-
-The request will be intercepted. The CLI logs show:
-
-```
-proxy_request method=POST host=api.github.com path=/repos/my-org/my-repo/deployments
-proxy_block fingerprint=xxx status=pending reason=RULE_MATCHED path=/repos/my-org/my-repo/deployments
-```
-
-The client receives a `403` JSON response containing an `approval_url`.
-
-### 11. Approve in Browser
-
-1. Open the `approval_url` from the block response in your browser
-2. Review the request details — resource, action, and timing
-3. Click **Approve with Passkey**
-4. Complete the system Passkey prompt (Touch ID / Face ID / system password)
-
-After approval, the original request can proceed. The CLI detects the approval and resumes.
-
-### 12. Retry the Command
-
-Re-run the original command. Now that the approval is granted, the request passes through:
-
-```
-proxy_allow fingerprint=xxx path=/repos/my-org/my-repo/deployments
-```
+- **Hermes**: `hermes plugins install merico-ai/hermes-plugin-human-signoff-approval`
+- **OpenClaw**: `openclaw plugins install merico-ai/openclaw-human-signoff`
 
 ## Proxy Logs Explained
 
