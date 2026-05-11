@@ -233,6 +233,11 @@ run_install_ca() {
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
     local signoff_bin="${INSTALL_DIR}/signoff"
     sudo "$signoff_bin" install-ca && info "CA certificate installed" || warn "CA installation failed"
+    local app_support_dir="${HOME}/Library/Application Support/signoff-cli"
+    if [[ -d "$app_support_dir" && "$(stat -f %Su "$app_support_dir")" == "root" ]]; then
+      sudo chown -R "$(logname)" "$app_support_dir"
+      info "Fixed ownership of ${app_support_dir}"
+    fi
   fi
 }
 
