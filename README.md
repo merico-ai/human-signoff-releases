@@ -9,8 +9,7 @@ Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., 
 curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
 bash install.sh
 
-# 2. Configure server URL and login
-signoff config set server_url https://demo.signoff.bio
+# 2. Login
 signoff login
 
 # 3. Start the proxy
@@ -89,7 +88,6 @@ signoff --help
 ### 5. Login from CLI
 
 ```bash
-signoff config set server_url https://demo.signoff.bio
 signoff login
 ```
 
