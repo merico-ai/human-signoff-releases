@@ -85,6 +85,91 @@ resolve_install_dir() {
   esac
 }
 
+# ─── Ensure running signoff service is stopped before install ────────────
+find_signoff_binary() {
+  if [[ -x "${INSTALL_DIR}/${BINARY_NAME}" ]]; then
+    echo "${INSTALL_DIR}/${BINARY_NAME}"
+    return 0
+  fi
+  if command -v "${BINARY_NAME}" &>/dev/null; then
+    command -v "${BINARY_NAME}"
+    return 0
+  fi
+  return 1
+}
+
+detect_signoff_service_state() {
+  local signoff_bin="$1"
+  local output
+  local state
+
+  output="$("${signoff_bin}" status --json 2>/dev/null || true)"
+  if [[ -n "$output" ]]; then
+    state="$(sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' <<< "$output" | head -n 1)"
+    if [[ -n "$state" ]]; then
+      echo "$state"
+      return 0
+    fi
+  fi
+
+  output="$("${signoff_bin}" status 2>/dev/null || true)"
+  if grep -qi "is unhealthy" <<< "$output"; then
+    echo "unhealthy"
+    return 0
+  fi
+  if grep -qi "is already running\|is running" <<< "$output"; then
+    echo "running"
+    return 0
+  fi
+  if grep -qi "is not running" <<< "$output"; then
+    echo "stopped"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_signoff_service_stopped_for_install() {
+  local signoff_bin
+  signoff_bin="$(find_signoff_binary || true)"
+  if [[ -z "$signoff_bin" ]]; then
+    return 0
+  fi
+
+  local state
+  if ! state="$(detect_signoff_service_state "$signoff_bin")"; then
+    warn "Could not determine existing signoff service status from ${signoff_bin}. Continuing install."
+    return 0
+  fi
+
+  if [[ "$state" != "running" && "$state" != "unhealthy" ]]; then
+    return 0
+  fi
+
+  warn "Detected existing signoff service state: ${state}"
+  printf "Attempting graceful stop before installation... "
+  if "${signoff_bin}" stop; then
+    printf "${GREEN}done${NC}\n"
+    info "Stopped existing signoff service"
+    return 0
+  fi
+  printf "${YELLOW}FAILED${NC}\n"
+  warn "Graceful stop failed."
+
+  printf "Force stop with '${signoff_bin} stop --force' and continue install? [y/N] "
+  local answer
+  read -r answer
+  if [[ "$answer" =~ ^[Yy] ]]; then
+    if "${signoff_bin}" stop --force; then
+      info "Force stop succeeded"
+      return 0
+    fi
+    error "Force stop failed. Please stop signoff manually, then re-run install."
+  fi
+
+  error "Installation aborted because signoff service is still running."
+}
+
 # ─── Download and install binary ─────────────────────────────────────────
 install_binary() {
   local tag="$1"
@@ -349,6 +434,8 @@ detect_platform
 IS_LINUX=${IS_LINUX:-false}
 IS_MACOS=${IS_MACOS:-false}
 info "Detected platform: ${GOOS}/${GOARCH}"
+
+ensure_signoff_service_stopped_for_install
 
 # ─── Step 1: Get latest release tag ──────────────────────────────────────
 header "Step 1: Download Signoff CLI"

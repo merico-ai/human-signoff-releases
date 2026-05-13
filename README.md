@@ -2,29 +2,37 @@
 
 Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., git push, PR merge, production deployment) and requires **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (Claude Code, Hermes, OpenClaw) and your production infrastructure.
 
-## Quick Start
-
-```bash
-# 1. Install the CLI
-curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
-bash install.sh
-
-# 2. Login
-signoff login
-
-# 3. Start the proxy
-signoff run
-```
-
-Then configure your AI agent's HTTP proxy to `http://127.0.0.1:17771`.
-
 ---
+
+## Preflight (Gateway Users Only)
+
+- If you plan to use OpenClaw or Hermes integration, ensure the corresponding Gateway is already configured and running before continuing.
+- If you only use Claude, you can continue with the steps below without this prerequisite.
 
 ## End-to-End Walkthrough
 
 This guide walks through the complete setup — from creating an account to completing your first approval verification.
 
-### 1. Register an Account
+### 1. Install the signoff CLI
+
+```bash
+curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
+bash install.sh
+```
+
+The installer will guide you through:
+
+- Binary installation to `/usr/local/bin/signoff`
+- CA certificate installation for HTTPS interception (optional)
+- AI agent plugin installation (optional)
+
+Verify installation:
+
+```bash
+signoff --help
+```
+
+### 2. Register an Account
 
 Open the registration page in your browser:
 
@@ -34,7 +42,7 @@ https://demo.signoff.bio/#/register
 
 Enter your email, password, and display name, then submit. After registration, you'll be logged in automatically.
 
-### 2. Add a Passkey
+### 3. Add a Passkey
 
 Passkey (WebAuthn) is used to cryptographically confirm approval actions. Go to the **Account** page:
 
@@ -44,9 +52,11 @@ https://demo.signoff.bio/#/account
 
 In the **Authenticators** section, click **Add Passkey**, enter a label (e.g., "My MacBook"), and complete the system prompt (Touch ID / Face ID / system password).
 
+If you use multiple browsers or browser profiles, you may need to register a Passkey in each one where approvals are performed. If your credential provider syncs passkeys across browsers/devices, it may already be available without re-registration.
+
 After adding, you should see the authenticator in the list with its usage count and creation time.
 
-### 3. Configure an Interception Rule
+### 4. Configure an Interception Rule
 
 Rules define which API requests should be intercepted for approval. Go to the **Rules** page:
 
@@ -65,25 +75,6 @@ Click **Add Rule** and enter these minimum fields to intercept any POST request 
 | HTTP Methods | `POST` | HTTP methods to intercept (one per line) |
 
 Click **Save** when done. The CLI will pick up the new rules within 10 seconds.
-
-### 4. Install the signoff CLI
-
-```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
-bash install.sh
-```
-
-The installer will guide you through:
-
-- Binary installation to `/usr/local/bin/signoff`
-- CA certificate installation for HTTPS interception (optional)
-- AI agent plugin installation (optional)
-
-Verify installation:
-
-```bash
-signoff --help
-```
 
 ### 5. Login from CLI
 
