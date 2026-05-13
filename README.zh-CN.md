@@ -114,6 +114,14 @@ Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 signoff status
 ```
 
+打印启动日志并检查是否有错误：
+
+```bash
+signoff logs
+```
+
+启动日志中不应出现明显失败关键词，例如 `error`、`failed`、`panic`，或反复崩溃/重启的日志。
+
 ### 7. 验证拦截
 
 设置代理环境变量并发送测试请求：

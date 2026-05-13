@@ -114,6 +114,14 @@ Check proxy status:
 signoff status
 ```
 
+Print startup logs and check for errors:
+
+```bash
+signoff logs
+```
+
+The startup log should not contain obvious failure keywords such as `error`, `failed`, `panic`, or repeated crash/restart messages.
+
 ### 7. Verify Interception
 
 Set the proxy environment variables and send a test request:
