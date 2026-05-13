@@ -88,7 +88,7 @@ This opens your browser for OAuth authorization. Complete the login in the brows
 Check login status:
 
 ```bash
-signoff status
+signoff whoami
 ```
 
 ### 6. Start the Proxy
@@ -107,6 +107,12 @@ Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 ```
 
 The proxy runs as a background service. Use `signoff stop` to stop it, `signoff logs` to view logs, and `signoff status` to check if it's running.
+
+Check proxy status:
+
+```bash
+signoff status
+```
 
 ### 7. Verify Interception
 
@@ -175,6 +181,7 @@ Use `signoff logs` to view the logs.
 | Command | Description |
 |---|---|
 | `signoff login` | Authenticate via browser OAuth |
+| `signoff whoami` | Show current login status |
 | `signoff run` | Start proxy as a background service |
 | `signoff run --foreground` | Start proxy in the current terminal |
 | `signoff stop` | Stop the background proxy service |

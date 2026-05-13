@@ -88,7 +88,7 @@ signoff login
 检查登录状态：
 
 ```bash
-signoff status
+signoff whoami
 ```
 
 ### 6. 启动代理
@@ -107,6 +107,12 @@ Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 ```
 
 代理以后台服务运行。可使用 `signoff stop` 停止，`signoff logs` 查看日志，`signoff status` 查看当前状态。
+
+检查代理状态：
+
+```bash
+signoff status
+```
 
 ### 7. 验证拦截
 
@@ -175,6 +181,7 @@ background_refresh_tick|background_refresh_ok|background_refresh_failed
 | 命令 | 说明 |
 |---|---|
 | `signoff login` | 通过浏览器 OAuth 登录 |
+| `signoff whoami` | 查看当前登录状态 |
 | `signoff run` | 以后台服务启动代理 |
 | `signoff run --foreground` | 在当前终端前台启动代理 |
 | `signoff stop` | 停止后台代理服务 |
