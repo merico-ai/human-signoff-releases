@@ -142,8 +142,10 @@ curl -sv -X POST https://api.github.com/repos/owner/repo/deployments \
 预期结果：请求被 `403` 拦截，并返回 `approval_url`：
 
 ```json
-{"error":{"code":"RULE_MATCHED","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/..."}
+{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
 ```
+
+实际响应中可能还会包含其他字段（例如 `approval_status_url`、重试建议和轮询提示）。
 
 可通过日志确认：
 
@@ -155,15 +157,16 @@ signoff logs
 
 ```
 proxy_request method=POST host=api.github.com path=/repos/owner/repo/deployments
-proxy_block fingerprint=... status=pending reason=RULE_MATCHED path=/repos/owner/repo/deployments
+proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/owner/repo/deployments
 ```
 
 ### 8. 在浏览器审批
 
 1. 在浏览器打开拦截响应中的 `approval_url`
-2. 检查请求详情（资源、动作、时间等）
-3. 点击 **Approve with Passkey**
-4. 完成系统 Passkey 确认（Touch ID / Face ID / 系统密码）
+2. 如果先进入的是请求列表页，请先点击该请求的 **Open** 进入详情页
+3. 检查请求详情（资源、动作、时间等）
+4. 点击 **Approve with Passkey**
+5. 完成系统 Passkey 确认（Touch ID / Face ID / 系统密码）
 
 审批后，原请求即可继续。
 
@@ -174,6 +177,8 @@ proxy_block fingerprint=... status=pending reason=RULE_MATCHED path=/repos/owner
 ```
 proxy_allow fingerprint=... path=/repos/owner/repo/deployments
 ```
+
+注意：上游 API 仍可能返回其自身业务/鉴权响应（例如未携带 GitHub token 时返回 `401 Requires authentication`）。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
 
 ## 代理日志说明
 

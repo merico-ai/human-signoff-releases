@@ -142,8 +142,10 @@ curl -sv -X POST https://api.github.com/repos/owner/repo/deployments \
 Expected result — the request is blocked with a `403` response containing an `approval_url`:
 
 ```json
-{"error":{"code":"RULE_MATCHED","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/..."}
+{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
 ```
+
+The response may include additional fields (for example `approval_status_url`, retry guidance, and polling hints).
 
 Check the proxy logs to confirm:
 
@@ -155,15 +157,16 @@ You should see:
 
 ```
 proxy_request method=POST host=api.github.com path=/repos/owner/repo/deployments
-proxy_block fingerprint=... status=pending reason=RULE_MATCHED path=/repos/owner/repo/deployments
+proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/owner/repo/deployments
 ```
 
 ### 8. Approve in Browser
 
 1. Open the `approval_url` from the block response in your browser
-2. Review the request details — resource, action, and timing
-3. Click **Approve with Passkey**
-4. Complete the system Passkey prompt (Touch ID / Face ID / system password)
+2. If you land on the requests list page first, click **Open** on that request to enter the detail page
+3. Review the request details — resource, action, and timing
+4. Click **Approve with Passkey**
+5. Complete the system Passkey prompt (Touch ID / Face ID / system password)
 
 After approval, the original request can proceed.
 
@@ -174,6 +177,8 @@ Re-run the same curl command. Now that the approval is granted, the request pass
 ```
 proxy_allow fingerprint=... path=/repos/owner/repo/deployments
 ```
+
+Note: the upstream API may still return its own business/auth response (for example, GitHub `401 Requires authentication` without a token). Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
 
 ## Proxy Logs Explained
 

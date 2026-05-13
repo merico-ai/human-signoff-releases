@@ -357,12 +357,89 @@ run_install_ca() {
   read -r answer
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
     sudo "$signoff_bin" install-ca && info "CA certificate installed" || warn "CA installation failed"
-    local app_support_dir="${HOME}/Library/Application Support/signoff-cli"
-    if [[ -d "$app_support_dir" && "$(stat -f %Su "$app_support_dir")" == "root" ]]; then
-      sudo chown -R "$(logname)" "$app_support_dir"
-      info "Fixed ownership of ${app_support_dir}"
+    ensure_signoff_data_permissions
+  fi
+}
+
+resolve_real_user() {
+  if [[ -n "${SUDO_USER:-}" ]]; then
+    echo "${SUDO_USER}"
+    return 0
+  fi
+  local login_user
+  login_user="$(logname 2>/dev/null || true)"
+  if [[ -n "$login_user" ]]; then
+    echo "$login_user"
+    return 0
+  fi
+  id -un
+}
+
+ensure_signoff_dir_writable() {
+  local dir="$1"
+  local owner="$2"
+  if [[ ! -d "$dir" ]]; then
+    return 0
+  fi
+  if [[ -w "$dir" ]]; then
+    return 0
+  fi
+  warn "Fixing ownership for ${dir} (not writable by current user)"
+  if sudo chown -R "$owner" "$dir"; then
+    info "Fixed ownership of ${dir}"
+  else
+    warn "Failed to fix ownership of ${dir}"
+  fi
+}
+
+ensure_signoff_data_permissions() {
+  local real_user
+  real_user="$(resolve_real_user)"
+  local data_dirs=()
+
+  if [[ "$IS_MACOS" == true ]]; then
+    data_dirs+=("${HOME}/Library/Application Support/signoff-cli")
+  else
+    if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+      data_dirs+=("${XDG_CONFIG_HOME}/signoff-cli")
+    else
+      data_dirs+=("${HOME}/.config/signoff-cli")
     fi
   fi
+
+  local dir
+  for dir in "${data_dirs[@]}"; do
+    ensure_signoff_dir_writable "$dir" "$real_user"
+    ensure_signoff_dir_writable "${dir}/logs" "$real_user"
+  done
+}
+
+warn_signoff_data_permission_issues() {
+  local real_user
+  real_user="$(resolve_real_user)"
+  local data_dirs=()
+
+  if [[ "$IS_MACOS" == true ]]; then
+    data_dirs+=("${HOME}/Library/Application Support/signoff-cli")
+  else
+    if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+      data_dirs+=("${XDG_CONFIG_HOME}/signoff-cli")
+    else
+      data_dirs+=("${HOME}/.config/signoff-cli")
+    fi
+  fi
+
+  local dir
+  for dir in "${data_dirs[@]}"; do
+    if [[ -d "$dir" && ! -w "$dir" ]]; then
+      warn "Directory not writable: ${dir}"
+      printf "  Run to fix: sudo chown -R %s \"%s\"\n" "$real_user" "$dir"
+    fi
+    if [[ -d "${dir}/logs" && ! -w "${dir}/logs" ]]; then
+      warn "Directory not writable: ${dir}/logs"
+      printf "  Run to fix: sudo chown -R %s \"%s\"\n" "$real_user" "${dir}/logs"
+    fi
+  done
 }
 
 # ─── Configure gateway proxy ─────────────────────────────────────────────
@@ -545,6 +622,7 @@ fi
 # ─── Step 4: Install CA ──────────────────────────────────────────────────
 header "Step 4: CA Certificate"
 run_install_ca
+warn_signoff_data_permission_issues
 
 # ─── Done ────────────────────────────────────────────────────────────────
 printf "\n${GREEN}╔══════════════════════════════════════════════════════╗${NC}\n"
