@@ -18,8 +18,7 @@ Human Signoff 提供一个本地代理，用于拦截敏感 API 调用（如 git
 ### 1. 安装 signoff CLI
 
 ```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
-bash install.sh
+curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh && bash install.sh
 ```
 
 安装脚本会引导你完成：

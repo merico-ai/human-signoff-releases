@@ -18,8 +18,7 @@ This guide walks through the complete setup — from creating an account to comp
 ### 1. Install the signoff CLI
 
 ```bash
-curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh
-bash install.sh
+curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh && bash install.sh
 ```
 
 The installer will guide you through:
