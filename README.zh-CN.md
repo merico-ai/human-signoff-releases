@@ -24,7 +24,7 @@ bash install.sh
 
 安装脚本会引导你完成：
 
-- 二进制安装到 `/usr/local/bin/signoff`
+- 二进制安装（由安装脚本交互选择路径：`/usr/local/bin/signoff`、`~/.local/bin/signoff`、`./signoff`，或你输入的自定义目录）
 - CA 证书安装（用于 HTTPS 拦截，可选）
 - AI Agent 插件安装（可选）
 

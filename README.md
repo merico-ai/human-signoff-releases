@@ -24,7 +24,7 @@ bash install.sh
 
 The installer will guide you through:
 
-- Binary installation to `/usr/local/bin/signoff`
+- Binary installation (installer-selected path: `/usr/local/bin/signoff`, `~/.local/bin/signoff`, `./signoff`, or a custom directory you enter)
 - CA certificate installation for HTTPS interception (optional)
 - AI agent plugin installation (optional)
 

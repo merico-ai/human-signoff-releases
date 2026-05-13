@@ -59,13 +59,16 @@ get_latest_tag() {
 # ─── Resolve install directory ───────────────────────────────────────────
 resolve_install_dir() {
   if [[ -d "$INSTALL_DIR" ]]; then
-    return 0
+    printf "Default install directory: ${INSTALL_DIR}\n"
+    printf "  1) Use ${INSTALL_DIR}\n"
+  else
+    printf "Target directory ${INSTALL_DIR} does not exist.\n"
+    printf "  1) Create ${INSTALL_DIR} (requires sudo)\n"
   fi
-  printf "Target directory ${INSTALL_DIR} does not exist.\n"
-  printf "  1) Create ${INSTALL_DIR} (requires sudo)\n"
   printf "  2) Use ${HOME}/.local/bin\n"
   printf "  3) Use current directory (${PWD})\n"
-  printf "Choose [1/2/3] (default: 1): "
+  printf "  4) Enter custom directory\n"
+  printf "Choose [1/2/3/4] (default: 1): "
   local answer
   read -r answer
   case "${answer:-1}" in
@@ -78,9 +81,33 @@ resolve_install_dir() {
       INSTALL_DIR="${PWD}"
       info "Using ${INSTALL_DIR}"
       ;;
+    4)
+      printf "Enter install directory path: "
+      local custom_dir
+      read -r custom_dir
+      if [[ -z "$custom_dir" ]]; then
+        error "Custom directory cannot be empty."
+      fi
+      if [[ "$custom_dir" == "~/"* ]]; then
+        custom_dir="${HOME}/${custom_dir#~/}"
+      elif [[ "$custom_dir" == "~" ]]; then
+        custom_dir="${HOME}"
+      fi
+      INSTALL_DIR="$custom_dir"
+      if mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+        info "Using ${INSTALL_DIR}"
+      else
+        sudo mkdir -p "$INSTALL_DIR"
+        info "Using ${INSTALL_DIR}"
+      fi
+      ;;
     *)
-      sudo mkdir -p "$INSTALL_DIR"
-      info "Created ${INSTALL_DIR}"
+      if [[ -d "$INSTALL_DIR" ]]; then
+        info "Using ${INSTALL_DIR}"
+      else
+        sudo mkdir -p "$INSTALL_DIR"
+        info "Created ${INSTALL_DIR}"
+      fi
       ;;
   esac
 }
