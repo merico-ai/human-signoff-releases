@@ -110,6 +110,13 @@ resolve_install_dir() {
       fi
       ;;
   esac
+
+  if [[ ":${PATH}:" != *":${INSTALL_DIR}:"* ]]; then
+    warn "Selected install directory is not in PATH: ${INSTALL_DIR}"
+    warn "signoff may not be found by OpenClaw/Hermes Gateway unless this directory is in PATH."
+    printf "Add it to PATH, for example:\n"
+    printf "  export PATH=\"%s:\$PATH\"\n" "${INSTALL_DIR}"
+  fi
 }
 
 # ─── Ensure running signoff service is stopped before install ────────────
@@ -338,7 +345,10 @@ install_plugin_via_cli() {
 
 # ─── Offer install-ca ────────────────────────────────────────────────────
 run_install_ca() {
-  if ! command -v signoff &>/dev/null && [[ ! -x "${INSTALL_DIR}/signoff" ]]; then
+  local signoff_bin
+  signoff_bin="$(find_signoff_binary || true)"
+  if [[ -z "$signoff_bin" ]]; then
+    warn "signoff binary not found in PATH or ${INSTALL_DIR}; skipping CA installation prompt."
     return
   fi
 
@@ -346,7 +356,6 @@ run_install_ca() {
   local answer
   read -r answer
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
-    local signoff_bin="${INSTALL_DIR}/signoff"
     sudo "$signoff_bin" install-ca && info "CA certificate installed" || warn "CA installation failed"
     local app_support_dir="${HOME}/Library/Application Support/signoff-cli"
     if [[ -d "$app_support_dir" && "$(stat -f %Su "$app_support_dir")" == "root" ]]; then
@@ -534,10 +543,8 @@ if [[ "$OPENCLAW_INSTALLED" == true ]]; then
 fi
 
 # ─── Step 4: Install CA ──────────────────────────────────────────────────
-if [[ "$HERMES_INSTALLED" == true || "$OPENCLAW_INSTALLED" == true ]]; then
-  header "Step 4: CA Certificate"
-  run_install_ca
-fi
+header "Step 4: CA Certificate"
+run_install_ca
 
 # ─── Done ────────────────────────────────────────────────────────────────
 printf "\n${GREEN}╔══════════════════════════════════════════════════════╗${NC}\n"

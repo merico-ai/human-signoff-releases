@@ -27,11 +27,15 @@ The installer will guide you through:
 - CA certificate installation for HTTPS interception (optional)
 - AI agent plugin installation (optional)
 
+Important: install `signoff` to a directory that is already in your `PATH` (recommended: `/usr/local/bin` or `~/.local/bin`). If the install directory is not in `PATH`, commands and Gateway integrations (OpenClaw/Hermes) may not find `signoff`.
+
 Verify installation:
 
 ```bash
 signoff --help
 ```
+
+If `signoff` is not found, add the install directory to `PATH` or reinstall to a `PATH` directory.
 
 ### 2. Register an Account
 
@@ -120,7 +124,7 @@ Print startup logs and check for errors:
 signoff logs
 ```
 
-The startup log should not contain obvious failure keywords such as `error`, `failed`, `panic`, or repeated crash/restart messages.
+The startup log should not show obvious fatal issues (for example: panic stacks, fatal exits, or repeated crash/restart messages).
 
 ### 7. Verify Interception
 
@@ -198,7 +202,7 @@ Use `signoff logs` to view the logs.
 | `signoff install-ca` | Install CA certificate (requires sudo) |
 | `signoff uninstall-ca` | Remove CA certificate |
 | `signoff config set <key> <value>` | Set configuration |
-| `signoff config show` | Show current configuration |
+| `signoff config list` | Show current configuration |
 
 ## Releases
 

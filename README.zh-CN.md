@@ -27,11 +27,15 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 - CA 证书安装（用于 HTTPS 拦截，可选）
 - AI Agent 插件安装（可选）
 
+重要：请将 `signoff` 安装到已在 `PATH` 中的目录（推荐：`/usr/local/bin` 或 `~/.local/bin`）。如果安装目录不在 `PATH` 中，命令本身以及 OpenClaw/Hermes Gateway 集成都可能找不到 `signoff`。
+
 验证安装：
 
 ```bash
 signoff --help
 ```
+
+如果出现 `signoff` 未找到，请先把安装目录加入 `PATH`，或重新安装到 `PATH` 目录。
 
 ### 2. 注册账号
 
@@ -120,7 +124,7 @@ signoff status
 signoff logs
 ```
 
-启动日志中不应出现明显失败关键词，例如 `error`、`failed`、`panic`，或反复崩溃/重启的日志。
+启动日志中不应出现明显致命异常（例如 panic 堆栈、fatal 退出、或反复崩溃/重启日志）。
 
 ### 7. 验证拦截
 
@@ -198,7 +202,7 @@ background_refresh_tick|background_refresh_ok|background_refresh_failed
 | `signoff install-ca` | 安装 CA 证书（需要 sudo） |
 | `signoff uninstall-ca` | 卸载 CA 证书 |
 | `signoff config set <key> <value>` | 设置配置 |
-| `signoff config show` | 查看当前配置 |
+| `signoff config list` | 查看当前配置 |
 
 ## 发布包
 
