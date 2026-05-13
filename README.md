@@ -1,5 +1,7 @@
 # Human Signoff CLI
 
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
 Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., git push, PR merge, production deployment) and requires **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (Claude Code, Hermes, OpenClaw) and your production infrastructure.
 
 ---
