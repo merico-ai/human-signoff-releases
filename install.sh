@@ -58,6 +58,18 @@ get_latest_tag() {
 
 # ─── Resolve install directory ───────────────────────────────────────────
 resolve_install_dir() {
+  local existing_signoff_path=""
+  local existing_signoff_dir=""
+  existing_signoff_path="$(which "${BINARY_NAME}" 2>/dev/null || true)"
+  if [[ -n "$existing_signoff_path" && -x "$existing_signoff_path" ]]; then
+    existing_signoff_dir="$(dirname "$existing_signoff_path")"
+    printf "Detected existing signoff: %s\n" "$existing_signoff_path"
+    printf "Reference install directory: %s\n" "$existing_signoff_dir"
+    if [[ "$existing_signoff_dir" != "$INSTALL_DIR" ]]; then
+      warn "Choosing a different directory may leave duplicate signoff binaries."
+    fi
+  fi
+
   if [[ -d "$INSTALL_DIR" ]]; then
     printf "Default install directory: ${INSTALL_DIR}\n"
     printf "  1) Use ${INSTALL_DIR}\n"
