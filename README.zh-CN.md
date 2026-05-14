@@ -2,18 +2,29 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Human Signoff 提供一个本地代理，用于拦截敏感 API 调用（如 git push、PR merge、生产部署），并在请求继续前要求通过 **Passkey 人工审批**。它在 AI Agent（Claude Code、Hermes、OpenClaw）和你的生产基础设施之间提供一层安全闸门。
+Human Signoff 提供一个本地代理，用于拦截敏感 API 调用（如 git push、PR merge、生产部署），并在请求继续前要求通过 **Passkey 人工审批**。它在 AI Agent（OpenClaw、Hermes、Claude Code）和你的生产基础设施之间提供一层安全闸门。
+
+按以下三个阶段操作，从零完成首次审批。
+
+## 目录
+
+- [前置条件](#前置条件)
+- [安装与注册](#安装与注册)
+- [规则配置](#规则配置)
+- [完成首次审批](#完成首次审批)
+- [移动端审批（可选）](#移动端审批可选)
+- [代理日志说明](#代理日志说明)
+- [命令列表](#命令列表)
 
 ---
 
-## 预检查（仅 Gateway 用户）
+## 前置条件
 
+- 支持平台：macOS（amd64 / arm64）与 Linux（amd64）。
 - 如果你计划使用 OpenClaw 或 Hermes 集成，请先确保对应 Gateway 已完成配置并处于运行状态，再继续后续步骤。
-- 如果你只使用 Claude，可跳过这一前置条件，直接继续下面流程。
+- 如果你只使用 Claude Code，可跳过这一前置条件，直接继续下面流程。
 
-## 端到端操作指南
-
-本指南覆盖完整初始化流程：从账号创建到完成第一次审批验证。
+## 安装与注册
 
 ### 1. 安装 signoff CLI
 
@@ -61,6 +72,8 @@ https://demo.signoff.bio/#/account
 
 添加完成后，你应能在列表中看到该 authenticator（含使用次数和创建时间）。
 
+## 规则配置
+
 ### 4. 配置拦截规则
 
 规则用于定义哪些 API 请求需要审批。打开 **Rules** 页面：
@@ -94,6 +107,8 @@ signoff login
 ```bash
 signoff whoami
 ```
+
+## 完成首次审批
 
 ### 6. 启动代理
 
@@ -177,6 +192,21 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
 注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
+
+> [!TIP]
+> **实际使用场景**：上述手动测试仅用于验证拦截机制。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的请求会自动经过代理拦截，你只需在浏览器中完成审批即可。
+
+## 移动端审批（可选）
+
+如果你不总是在电脑前，可以通过 OpenClaw 或 Hermes 配置外部 IM 通知渠道（如 微信、飞书等），将审批请求推送到手机，随时完成审批。
+
+具体的 IM plugin/channel 配置方式请参考对应工具的文档。
+
+> [!WARNING]
+> **注意事项**：
+> - 审批链接必须使用 Chrome 或 Safari 等支持 WebAuthn 的浏览器打开。微信、飞书等应用的内置浏览器不支持 Passkey 签署。
+> - 首次在手机上审批前，需要先登录 Signoff 服务（后续无需重复登录）。
+> - 首次在手机上审批前，需要在该设备上绑定 Passkey（即[步骤 3](#3-绑定-passkey)），否则签署会失败。
 
 ## 代理日志说明
 
