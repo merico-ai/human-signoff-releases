@@ -9,6 +9,8 @@ set -euo pipefail
 RELEASES_REPO="merico-ai/human-signoff-releases"
 HERMES_PLUGIN_REPO="merico-ai/hermes-plugin-human-signoff-approval"
 OPENCLAW_PLUGIN_REPO="merico-ai/openclaw-human-signoff"
+HERMES_PLUGIN_DIR_NAME="hermes-plugin-human-signoff-approval"
+OPENCLAW_PLUGIN_DIR="${HOME}/.openclaw/extensions/human-signoff-approval"
 BINARY_NAME="signoff"
 INSTALL_DIR="/usr/local/bin"
 CACHE_DIR="${HOME}/.cache/signoff"
@@ -322,6 +324,77 @@ is_plugin_installed_for() {
 is_hermes_plugin_installed()   { is_plugin_installed_for hermes; }
 is_openclaw_plugin_installed() { is_plugin_installed_for openclaw; }
 
+uninstall_hermes_plugin_for_reinstall() {
+  local plugin_dir_primary="${HOME}/.hermes/plugins/${HERMES_PLUGIN_DIR_NAME}"
+  local plugin_dir_by_id="${HOME}/.hermes/plugins/human-signoff-approval"
+  local has_dir=false
+  if [[ -d "$plugin_dir_primary" || -d "$plugin_dir_by_id" ]]; then
+    has_dir=true
+  fi
+
+  if ! is_hermes_plugin_installed && [[ "$has_dir" == false ]]; then
+    return 0
+  fi
+
+  info "Refreshing existing Hermes approval plugin"
+  hermes plugins disable human-signoff-approval >/dev/null 2>&1 || true
+
+  local remove_target
+  local removed=false
+  for remove_target in "human-signoff-approval" "${HERMES_PLUGIN_DIR_NAME}"; do
+    if hermes plugins remove "$remove_target" >/dev/null 2>&1; then
+      removed=true
+    fi
+  done
+
+  has_dir=false
+  if [[ -d "$plugin_dir_primary" || -d "$plugin_dir_by_id" ]]; then
+    has_dir=true
+  fi
+
+  if is_hermes_plugin_installed || [[ "$has_dir" == true ]]; then
+    if [[ "$removed" == false ]]; then
+      warn "Hermes plugin remove command did not complete successfully."
+    fi
+    error "Failed to fully remove existing Hermes approval plugin. Try: hermes plugins remove human-signoff-approval OR hermes plugins remove ${HERMES_PLUGIN_DIR_NAME}, then rerun installer."
+  fi
+}
+
+uninstall_openclaw_plugin_for_reinstall() {
+  local was_installed=false
+  if is_openclaw_plugin_installed; then
+    was_installed=true
+  fi
+  if [[ "$was_installed" == false && ! -d "${OPENCLAW_PLUGIN_DIR}" ]]; then
+    return 0
+  fi
+
+  info "Refreshing existing OpenClaw approval plugin"
+  openclaw plugins disable human-signoff-approval >/dev/null 2>&1 || true
+  if [[ "$was_installed" == true ]]; then
+    openclaw plugins uninstall human-signoff-approval --force >/dev/null 2>&1 || true
+  fi
+
+  if [[ -d "${OPENCLAW_PLUGIN_DIR}" ]]; then
+    rm -rf "${OPENCLAW_PLUGIN_DIR}"
+  fi
+
+  openclaw plugins registry --refresh >/dev/null 2>&1 || true
+}
+
+reinstall_plugin_via_cli() {
+  local repo="$1"
+  local name="$2"
+
+  if [[ "$name" == "hermes" ]]; then
+    uninstall_hermes_plugin_for_reinstall
+  else
+    uninstall_openclaw_plugin_for_reinstall
+  fi
+
+  install_plugin_via_cli "$repo" "$name"
+}
+
 # ─── Install agent plugin via CLI ────────────────────────────────────────
 install_plugin_via_cli() {
   local repo="$1"
@@ -586,8 +659,13 @@ header "Step 2: Hermes Approval Plugin"
 if ! command -v hermes &>/dev/null; then
   warn "Hermes not found. To install the Hermes plugin, install Hermes first."
 elif is_hermes_plugin_installed; then
-  info "Hermes approval plugin already installed"
-  HERMES_INSTALLED=true
+  info "Hermes approval plugin already installed; reinstalling to update..."
+  if reinstall_plugin_via_cli "$HERMES_PLUGIN_REPO" "hermes"; then
+    info "Hermes approval plugin updated"
+    HERMES_INSTALLED=true
+  else
+    error "Hermes plugin update failed"
+  fi
 else
   printf "Install Hermes approval plugin? [y/N] "
   read -r answer
@@ -612,8 +690,13 @@ header "Step 3: OpenClaw Approval Plugin"
 if ! command -v openclaw &>/dev/null; then
   warn "OpenClaw not found. To install the OpenClaw plugin, install OpenClaw first."
 elif is_openclaw_plugin_installed; then
-  info "OpenClaw approval plugin already installed"
-  OPENCLAW_INSTALLED=true
+  info "OpenClaw approval plugin already installed; reinstalling to update..."
+  if reinstall_plugin_via_cli "$OPENCLAW_PLUGIN_REPO" "openclaw"; then
+    info "OpenClaw approval plugin updated"
+    OPENCLAW_INSTALLED=true
+  else
+    error "OpenClaw plugin update failed"
+  fi
 else
   printf "Install OpenClaw approval plugin? [y/N] "
   read -r answer
