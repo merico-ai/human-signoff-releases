@@ -2,18 +2,29 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., git push, PR merge, production deployment) and requires **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (Claude Code, Hermes, OpenClaw) and your production infrastructure.
+Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., git push, PR merge, production deployment) and requires **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (OpenClaw, Hermes, Claude Code) and your production infrastructure.
+
+Follow the three sections below to go from zero to your first approved request.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Install & Register](#install--register)
+- [Configure](#configure)
+- [First Approval](#first-approval)
+- [Mobile Approval (Optional)](#mobile-approval-optional)
+- [Proxy Logs Explained](#proxy-logs-explained)
+- [Commands](#commands)
 
 ---
 
-## Preflight (Gateway Users Only)
+## Prerequisites
 
+- Supported platforms: macOS (amd64 / arm64) and Linux (amd64).
 - If you plan to use OpenClaw or Hermes integration, ensure the corresponding Gateway is already configured and running before continuing.
-- If you only use Claude, you can continue with the steps below without this prerequisite.
+- If you only use Claude Code, you can continue with the steps below without this prerequisite.
 
-## End-to-End Walkthrough
-
-This guide walks through the complete setup — from creating an account to completing your first approval verification.
+## Install & Register
 
 ### 1. Install the signoff CLI
 
@@ -61,6 +72,8 @@ If you use multiple browsers or browser profiles, you may need to register a Pas
 
 After adding, you should see the authenticator in the list with its usage count and creation time.
 
+## Configure
+
 ### 4. Configure an Interception Rule
 
 Rules define which API requests should be intercepted for approval. Go to the **Rules** page:
@@ -94,6 +107,8 @@ Check login status:
 ```bash
 signoff whoami
 ```
+
+## First Approval
 
 ### 6. Start the Proxy
 
@@ -177,6 +192,21 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
 Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
+
+> [!TIP]
+> **In practice**: The manual test above verifies that interception works. During normal use, requests from OpenClaw, Hermes, or Claude Code are intercepted automatically — you only need to approve them in the browser when prompted.
+
+## Mobile Approval (Optional)
+
+If you're not always at your computer, you can configure an external IM notification channel (e.g., Slack, Telegram) in OpenClaw or Hermes to push approval requests to your phone.
+
+Refer to the corresponding agent documentation for IM plugin/channel configuration.
+
+> [!WARNING]
+> **Important notes**:
+> - Approval links must be opened in a browser that supports WebAuthn (Chrome, Safari, etc.). In-app browsers in WeChat, Lark, and similar apps do not support Passkey signing.
+> - You must log in to the Signoff service on your phone before your first mobile approval (subsequent approvals do not require re-login).
+> - You must register a Passkey on the mobile device (see [Step 3](#3-add-a-passkey)) before your first mobile approval, or signing will fail.
 
 ## Proxy Logs Explained
 
