@@ -69,15 +69,15 @@ https://demo.signoff.bio/#/account
 https://demo.signoff.bio/#/rules
 ```
 
-点击 **Add Rule**，至少填写以下字段，即可拦截 GitHub API 的任意 POST 请求：
+点击 **Add Rule**，至少填写以下字段，配置一个低门槛验证规则（无需额外 token）：
 
 | 字段 | 示例 | 说明 |
 |---|---|---|
-| Name | `GitHub POST` | 便于识别的规则名称 |
+| Name | `GitHub PR Query Check` | 便于识别的规则名称 |
 | Platform | `github` | 规则目标平台 |
 | Hosts | `api.github.com` | 目标主机名（每行一个） |
-| Path Pattern | `.*` | 路径匹配（正则） |
-| HTTP Methods | `POST` | 需要拦截的 HTTP 方法（每行一个） |
+| Path Pattern | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
+| HTTP Methods | `GET` | 需要拦截的 HTTP 方法（每行一个） |
 
 点击 **Save** 保存。CLI 会在 10 秒内拉取到新规则。
 
@@ -134,9 +134,7 @@ signoff logs
 export HTTP_PROXY=http://127.0.0.1:17771
 export HTTPS_PROXY=http://127.0.0.1:17771
 
-curl -sv -X POST https://api.github.com/repos/owner/repo/deployments \
-  -H "Content-Type: application/json" \
-  -d '{"ref": "main"}' 2>&1
+curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
 ```
 
 预期结果：请求被 `403` 拦截，并返回 `approval_url`：
@@ -156,8 +154,8 @@ signoff logs
 你应看到：
 
 ```
-proxy_request method=POST host=api.github.com path=/repos/owner/repo/deployments
-proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/owner/repo/deployments
+proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
+proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
 ```
 
 ### 8. 在浏览器审批
@@ -175,10 +173,10 @@ proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/o
 再次执行同一条 curl 命令。审批通过后，请求会被放行：
 
 ```
-proxy_allow fingerprint=... path=/repos/owner/repo/deployments
+proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
-注意：上游 API 仍可能返回其自身业务/鉴权响应（例如未携带 GitHub token 时返回 `401 Requires authentication`）。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
+注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
 
 ## 代理日志说明
 

@@ -69,15 +69,15 @@ Rules define which API requests should be intercepted for approval. Go to the **
 https://demo.signoff.bio/#/rules
 ```
 
-Click **Add Rule** and enter these minimum fields to intercept any POST request to GitHub API:
+Click **Add Rule** and enter these minimum fields for a low-friction verification rule (no extra token required):
 
 | Field | Example | Description |
 |---|---|---|
-| Name | `GitHub POST` | A recognizable name |
+| Name | `GitHub PR Query Check` | A recognizable name |
 | Platform | `github` | The platform this rule targets |
 | Hosts | `api.github.com` | Target hostnames (one per line) |
-| Path Pattern | `.*` | Match all paths (regex) |
-| HTTP Methods | `POST` | HTTP methods to intercept (one per line) |
+| Path Pattern | `^/repos/[^/]+/[^/]+/pulls$` | Match pull request list queries (regex) |
+| HTTP Methods | `GET` | HTTP methods to intercept (one per line) |
 
 Click **Save** when done. The CLI will pick up the new rules within 10 seconds.
 
@@ -134,9 +134,7 @@ Set the proxy environment variables and send a test request:
 export HTTP_PROXY=http://127.0.0.1:17771
 export HTTPS_PROXY=http://127.0.0.1:17771
 
-curl -sv -X POST https://api.github.com/repos/owner/repo/deployments \
-  -H "Content-Type: application/json" \
-  -d '{"ref": "main"}' 2>&1
+curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
 ```
 
 Expected result — the request is blocked with a `403` response containing an `approval_url`:
@@ -156,8 +154,8 @@ signoff logs
 You should see:
 
 ```
-proxy_request method=POST host=api.github.com path=/repos/owner/repo/deployments
-proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/owner/repo/deployments
+proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
+proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
 ```
 
 ### 8. Approve in Browser
@@ -175,10 +173,10 @@ After approval, the original request can proceed.
 Re-run the same curl command. Now that the approval is granted, the request passes through:
 
 ```
-proxy_allow fingerprint=... path=/repos/owner/repo/deployments
+proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
-Note: the upstream API may still return its own business/auth response (for example, GitHub `401 Requires authentication` without a token). Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
+Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
 
 ## Proxy Logs Explained
 
