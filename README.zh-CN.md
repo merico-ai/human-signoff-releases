@@ -69,15 +69,15 @@ https://demo.signoff.bio/#/account
 https://demo.signoff.bio/#/rules
 ```
 
-点击 **Add Rule**，至少填写以下字段，配置一个低门槛验证规则（无需额外 token）：
+点击 **Add rule** → **Create from scratch**，然后填写以下必填字段，配置一个低门槛验证规则（无需额外 token）：
 
 | 字段 | 示例 | 说明 |
 |---|---|---|
-| Name | `GitHub PR Query Check` | 便于识别的规则名称 |
+| Rule name（规则名称） | `GitHub PR Query Check` | 便于识别的规则名称 |
 | Platform | `github` | 规则目标平台 |
 | Hosts | `api.github.com` | 目标主机名（每行一个） |
-| Path Pattern | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
-| HTTP Methods | `GET` | 需要拦截的 HTTP 方法（每行一个） |
+| Path regex pattern（路径正则） | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
+| HTTP Methods（HTTP 方法） | `GET` | 需要拦截的 HTTP 方法（每行一个） |
 
 点击 **Save** 保存。CLI 会在 10 秒内拉取到新规则。
 

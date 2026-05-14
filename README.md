@@ -69,14 +69,14 @@ Rules define which API requests should be intercepted for approval. Go to the **
 https://demo.signoff.bio/#/rules
 ```
 
-Click **Add Rule** and enter these minimum fields for a low-friction verification rule (no extra token required):
+Click **Add rule** → **Create from scratch**, then fill these required fields for a low-friction verification rule (no extra token required):
 
 | Field | Example | Description |
 |---|---|---|
-| Name | `GitHub PR Query Check` | A recognizable name |
+| Rule name | `GitHub PR Query Check` | A recognizable name |
 | Platform | `github` | The platform this rule targets |
 | Hosts | `api.github.com` | Target hostnames (one per line) |
-| Path Pattern | `^/repos/[^/]+/[^/]+/pulls$` | Match pull request list queries (regex) |
+| Path regex pattern | `^/repos/[^/]+/[^/]+/pulls$` | Match pull request list queries (regex) |
 | HTTP Methods | `GET` | HTTP methods to intercept (one per line) |
 
 Click **Save** when done. The CLI will pick up the new rules within 10 seconds.
