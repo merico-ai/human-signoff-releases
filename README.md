@@ -170,7 +170,7 @@ The current implementation uses HTTP proxy mode, so log event names may include 
 
 ```
 proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
-proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
+signoff_guarded fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
 ```
 
 ### 8. Approve in Browser
@@ -188,10 +188,10 @@ After approval, the original request can proceed.
 Re-run the same curl command. Now that the approval is granted, the request proceeds:
 
 ```
-proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
+signoff_released fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
-Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
+Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `signoff_released` and the absence of `APPROVAL_PENDING` on retry.
 
 > [!TIP]
 > **In practice**: The manual test above verifies that protected requests wait for approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. You only need to approve them in the browser when prompted.
@@ -215,7 +215,7 @@ All requests handled by the local Signoff service are logged. The current implem
 ```
 proxy_connect host=<host>:<port> target_host=<host> action=tunnel|mitm
 proxy_request method=<method> host=<host> path=<path> query=<query> from=<client_ip> content_length=<size> user_agent="<ua>"
-proxy_allow|proxy_block fingerprint=<id> status=<status> path=<path>
+signoff_released|signoff_guarded fingerprint=<id> status=<status> path=<path>
 background_refresh_tick|background_refresh_ok|background_refresh_failed
 ```
 

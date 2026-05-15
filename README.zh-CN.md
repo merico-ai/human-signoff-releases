@@ -170,7 +170,7 @@ signoff logs
 
 ```
 proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
-proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
+signoff_guarded fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
 ```
 
 ### 8. 在浏览器审批
@@ -188,10 +188,10 @@ proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/o
 再次执行同一条 curl 命令。审批通过后，请求会被放行：
 
 ```
-proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
+signoff_released fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 
-注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
+注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `signoff_released` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
 
 > [!TIP]
 > **实际使用场景**：上述手动测试仅用于验证受保护请求会等待审批。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理，你只需在浏览器中完成审批即可。
@@ -215,7 +215,7 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 ```
 proxy_connect host=<host>:<port> target_host=<host> action=tunnel|mitm
 proxy_request method=<method> host=<host> path=<path> query=<query> from=<client_ip> content_length=<size> user_agent="<ua>"
-proxy_allow|proxy_block fingerprint=<id> status=<status> path=<path>
+signoff_released|signoff_guarded fingerprint=<id> status=<status> path=<path>
 background_refresh_tick|background_refresh_ok|background_refresh_failed
 ```
 
