@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Human Signoff 提供一个本地代理，用于拦截敏感 API 调用（如 git push、PR merge、生产部署），并在请求继续前要求通过 **Passkey 人工审批**。它在 AI Agent（OpenClaw、Hermes、Claude Code）和你的生产基础设施之间提供一层安全闸门。
+Human Signoff 提供一个本地 Signoff 服务，用于保护敏感 API 调用（如 git push、PR merge、生产部署），并在请求继续前要求通过 **Passkey 人工审批**。它在 AI Agent（OpenClaw、Hermes、Claude Code）和你的生产基础设施之间提供一层安全闸门。
 
 按以下三个阶段操作，从零完成首次审批。
 
@@ -13,7 +13,7 @@ Human Signoff 提供一个本地代理，用于拦截敏感 API 调用（如 git
 - [规则配置](#规则配置)
 - [完成首次审批](#完成首次审批)
 - [移动端审批（可选）](#移动端审批可选)
-- [代理日志说明](#代理日志说明)
+- [服务日志说明](#服务日志说明)
 - [命令列表](#命令列表)
 
 ---
@@ -35,7 +35,7 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 安装脚本会引导你完成：
 
 - 二进制安装（由安装脚本交互选择路径：`/usr/local/bin/signoff`、`~/.local/bin/signoff`、`./signoff`，或你输入的自定义目录）
-- CA 证书安装（用于 HTTPS 拦截，可选）
+- CA 证书安装（用于 HTTP 代理模式下受保护的 HTTPS 请求，可选）
 - AI Agent 插件安装（可选）
 
 重要：请将 `signoff` 安装到已在 `PATH` 中的目录（推荐：`/usr/local/bin` 或 `~/.local/bin`）。如果安装目录不在 `PATH` 中，命令本身以及 OpenClaw/Hermes Gateway 集成都可能找不到 `signoff`。
@@ -74,9 +74,9 @@ https://demo.signoff.bio/#/account
 
 ## 规则配置
 
-### 4. 配置拦截规则
+### 4. 配置审批规则
 
-规则用于定义哪些 API 请求需要审批。打开 **Rules** 页面：
+规则用于定义哪些 API 请求在继续前需要 Signoff 审批。打开 **Rules** 页面：
 
 ```
 https://demo.signoff.bio/#/rules
@@ -90,7 +90,7 @@ https://demo.signoff.bio/#/rules
 | Platform | `github` | 规则目标平台 |
 | Hosts | `api.github.com` | 目标主机名（每行一个） |
 | Path regex pattern（路径正则） | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
-| HTTP Methods（HTTP 方法） | `GET` | 需要拦截的 HTTP 方法（每行一个） |
+| HTTP Methods（HTTP 方法） | `GET` | 此规则保护的 HTTP 方法（每行一个） |
 
 点击 **Save** 保存。CLI 会在 10 秒内拉取到新规则。
 
@@ -110,13 +110,13 @@ signoff whoami
 
 ## 完成首次审批
 
-### 6. 启动代理
+### 6. 启动 Signoff 服务
 
 ```bash
 signoff run
 ```
 
-代理默认监听在 `127.0.0.1:17771`。你会看到类似输出：
+本地 Signoff 服务默认监听在 `127.0.0.1:17771`。你会看到类似输出：
 
 ```
 Signoff service started
@@ -125,9 +125,9 @@ Listen: 127.0.0.1:17771
 Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 ```
 
-代理以后台服务运行。可使用 `signoff stop` 停止，`signoff logs` 查看日志，`signoff status` 查看当前状态。
+Signoff 会作为本地后台服务运行。可使用 `signoff stop` 停止，`signoff logs` 查看日志，`signoff status` 查看当前状态。
 
-检查代理状态：
+检查服务状态：
 
 ```bash
 signoff status
@@ -141,9 +141,9 @@ signoff logs
 
 启动日志中不应出现明显致命异常（例如 panic 堆栈、fatal 退出、或反复崩溃/重启日志）。
 
-### 7. 验证拦截
+### 7. 验证受保护请求
 
-设置代理环境变量并发送测试请求：
+设置 HTTP 代理环境变量，并发送一个由审批规则覆盖的无害测试请求：
 
 ```bash
 export HTTP_PROXY=http://127.0.0.1:17771
@@ -152,7 +152,7 @@ export HTTPS_PROXY=http://127.0.0.1:17771
 curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
 ```
 
-预期结果：请求被 `403` 拦截，并返回 `approval_url`：
+预期结果：Signoff 会让请求等待审批，并返回一个包含 `approval_url` 的 `403` 响应：
 
 ```json
 {"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
@@ -160,13 +160,13 @@ curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&
 
 实际响应中可能还会包含其他字段（例如 `approval_status_url`、重试建议和轮询提示）。
 
-可通过日志确认：
+可通过服务日志确认：
 
 ```bash
 signoff logs
 ```
 
-你应看到：
+当前实现使用 HTTP 代理模式，因此日志事件名中可能包含 `proxy_*`：
 
 ```
 proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
@@ -175,7 +175,7 @@ proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/o
 
 ### 8. 在浏览器审批
 
-1. 在浏览器打开拦截响应中的 `approval_url`
+1. 在浏览器打开等待审批响应中的 `approval_url`
 2. 如果先进入的是请求列表页，请先点击该请求的 **Open** 进入详情页
 3. 检查请求详情（资源、动作、时间等）
 4. 点击 **Approve with Passkey**
@@ -194,7 +194,7 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `proxy_allow` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
 
 > [!TIP]
-> **实际使用场景**：上述手动测试仅用于验证拦截机制。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的请求会自动经过代理拦截，你只需在浏览器中完成审批即可。
+> **实际使用场景**：上述手动测试仅用于验证受保护请求会等待审批。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理，你只需在浏览器中完成审批即可。
 
 ## 移动端审批（可选）
 
@@ -208,9 +208,9 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 > - 首次在手机上审批前，需要先登录 Signoff 服务（后续无需重复登录）。
 > - 首次在手机上审批前，需要在该设备上绑定 Passkey（即[步骤 3](#3-绑定-passkey)），否则签署会失败。
 
-## 代理日志说明
+## 服务日志说明
 
-所有经过代理的请求都会记录日志：
+本地 Signoff 服务处理的请求都会记录日志。当前实现使用 HTTP 代理模式，因此技术日志事件名中可能包含 `proxy_*`：
 
 ```
 proxy_connect host=<host>:<port> target_host=<host> action=tunnel|mitm
@@ -227,11 +227,10 @@ background_refresh_tick|background_refresh_ok|background_refresh_failed
 |---|---|
 | `signoff login` | 通过浏览器 OAuth 登录 |
 | `signoff whoami` | 查看当前登录状态 |
-| `signoff run` | 以后台服务启动代理 |
-| `signoff run --foreground` | 在当前终端前台启动代理 |
-| `signoff stop` | 停止后台代理服务 |
-| `signoff status` | 查看代理状态（PID、监听地址、运行时长） |
-| `signoff logs` | 查看代理日志 |
+| `signoff run` | 启动本地 Signoff 服务 |
+| `signoff stop` | 停止本地 Signoff 服务 |
+| `signoff status` | 查看服务状态（PID、监听地址、运行时长） |
+| `signoff logs` | 查看服务日志 |
 | `signoff install-ca` | 安装 CA 证书（需要 sudo） |
 | `signoff uninstall-ca` | 卸载 CA 证书 |
 | `signoff config set <key> <value>` | 设置配置 |

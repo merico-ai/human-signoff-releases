@@ -437,7 +437,7 @@ run_install_ca() {
     return
   fi
 
-  printf "Install CA certificate for HTTPS interception (requires sudo)? [Y/n] "
+  printf "Install CA certificate for protected HTTPS requests in HTTP proxy mode (requires sudo)? [Y/n] "
   local answer
   read -r answer
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
@@ -527,11 +527,11 @@ warn_signoff_data_permission_issues() {
   done
 }
 
-# ─── Configure gateway proxy ─────────────────────────────────────────────
+# ─── Configure Gateway to use Signoff ────────────────────────────────────
 configure_gateway_proxy() {
   local agent_name="$1"   # "Hermes" or "OpenClaw"
 
-  printf "\n${CYAN}Configure ${agent_name} Gateway proxy settings?${NC}\n"
+  printf "\n${CYAN}Configure ${agent_name} Gateway to use the local Signoff service?${NC}\n"
 
   if [[ "$IS_MACOS" == true ]]; then
     local plist_name
@@ -551,11 +551,11 @@ configure_gateway_proxy() {
 
     if /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HTTP_PROXY" "$plist_path" &>/dev/null \
       && [[ "$(/usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:HTTP_PROXY" "$plist_path")" == "http://127.0.0.1:17771" ]]; then
-      info "${agent_name} Gateway proxy already configured"
+      info "${agent_name} Gateway already uses the local Signoff service"
       return
     fi
 
-    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${plist_name}.plist? [Y/n] "
+    printf "Add local Signoff service proxy settings to ${plist_name}.plist? [Y/n] "
     local answer
     read -r answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
@@ -569,7 +569,7 @@ configure_gateway_proxy() {
       launchctl bootout "gui/$(id -u)/${plist_name}" 2>/dev/null || true
       sleep 1
       launchctl bootstrap "gui/$(id -u)" "$plist_path" 2>/dev/null || true
-      info "${agent_name} Gateway proxy configured and service reloaded"
+      info "${agent_name} Gateway configured for Signoff and service reloaded"
     fi
   else
     local unit_name
@@ -592,11 +592,11 @@ configure_gateway_proxy() {
     local dropin_file="${dropin_dir}/proxy.conf"
 
     if [[ -f "$dropin_file" ]] && grep -q "HTTP_PROXY=http://127.0.0.1:17771" "$dropin_file" 2>/dev/null; then
-      info "${agent_name} Gateway proxy already configured"
+      info "${agent_name} Gateway already uses the local Signoff service"
       return
     fi
 
-    printf "Add HTTP_PROXY/HTTPS_PROXY/NO_PROXY to ${unit_name} systemd user service? [Y/n] "
+    printf "Add local Signoff service proxy settings to ${unit_name} systemd user service? [Y/n] "
     local answer
     read -r answer
     if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
@@ -614,7 +614,7 @@ EOF
       if [[ -z "$restart_answer" || "$restart_answer" =~ ^[Yy] ]]; then
         systemctl --user restart "${unit_name}" || warn "Failed to restart ${unit_name}"
       fi
-      info "${agent_name} Gateway proxy configured"
+      info "${agent_name} Gateway configured for Signoff"
     fi
   fi
 }
@@ -725,5 +725,5 @@ printf "${GREEN}║       Installation complete!                         ║${NC
 printf "${GREEN}╚══════════════════════════════════════════════════════╝${NC}\n"
 printf "\nQuick start:\n"
 printf "  1. ${CYAN}signoff login${NC}\n"
-printf "  2. ${CYAN}signoff run${NC}              (start the proxy)\n"
+printf "  2. ${CYAN}signoff run${NC}              (start the Signoff service)\n"
 printf "\nFor more: ${CYAN}https://github.com/${RELEASES_REPO}${NC}\n"

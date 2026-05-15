@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Human Signoff provides a local proxy that intercepts sensitive API calls (e.g., git push, PR merge, production deployment) and requires **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (OpenClaw, Hermes, Claude Code) and your production infrastructure.
+Human Signoff provides a local Signoff service that protects sensitive API calls (e.g., git push, PR merge, production deployment) by requiring **human approval via Passkey** before the request proceeds. It acts as a safety gate between AI agents (OpenClaw, Hermes, Claude Code) and your production infrastructure.
 
 Follow the three sections below to go from zero to your first approved request.
 
@@ -13,7 +13,7 @@ Follow the three sections below to go from zero to your first approved request.
 - [Configure](#configure)
 - [First Approval](#first-approval)
 - [Mobile Approval (Optional)](#mobile-approval-optional)
-- [Proxy Logs Explained](#proxy-logs-explained)
+- [Service Logs Explained](#service-logs-explained)
 - [Commands](#commands)
 
 ---
@@ -35,7 +35,7 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 The installer will guide you through:
 
 - Binary installation (installer-selected path: `/usr/local/bin/signoff`, `~/.local/bin/signoff`, `./signoff`, or a custom directory you enter)
-- CA certificate installation for HTTPS interception (optional)
+- CA certificate installation for protected HTTPS requests in HTTP proxy mode (optional)
 - AI agent plugin installation (optional)
 
 Important: install `signoff` to a directory that is already in your `PATH` (recommended: `/usr/local/bin` or `~/.local/bin`). If the install directory is not in `PATH`, commands and Gateway integrations (OpenClaw/Hermes) may not find `signoff`.
@@ -74,9 +74,9 @@ After adding, you should see the authenticator in the list with its usage count 
 
 ## Configure
 
-### 4. Configure an Interception Rule
+### 4. Configure an Approval Rule
 
-Rules define which API requests should be intercepted for approval. Go to the **Rules** page:
+Rules define which API requests require Signoff approval before they proceed. Go to the **Rules** page:
 
 ```
 https://demo.signoff.bio/#/rules
@@ -90,7 +90,7 @@ Click **Add rule** → **Create from scratch**, then fill these required fields 
 | Platform | `github` | The platform this rule targets |
 | Hosts | `api.github.com` | Target hostnames (one per line) |
 | Path regex pattern | `^/repos/[^/]+/[^/]+/pulls$` | Match pull request list queries (regex) |
-| HTTP Methods | `GET` | HTTP methods to intercept (one per line) |
+| HTTP Methods | `GET` | HTTP methods covered by this rule (one per line) |
 
 Click **Save** when done. The CLI will pick up the new rules within 10 seconds.
 
@@ -110,13 +110,13 @@ signoff whoami
 
 ## First Approval
 
-### 6. Start the Proxy
+### 6. Start the Signoff Service
 
 ```bash
 signoff run
 ```
 
-The proxy starts on `127.0.0.1:17771` by default. You'll see:
+The local Signoff service listens on `127.0.0.1:17771` by default. You'll see:
 
 ```
 Signoff service started
@@ -125,9 +125,9 @@ Listen: 127.0.0.1:17771
 Log: /Users/.../signoff-cli/logs/signoff-20260510-153012-12345.log
 ```
 
-The proxy runs as a background service. Use `signoff stop` to stop it, `signoff logs` to view logs, and `signoff status` to check if it's running.
+Signoff runs as a background local service. Use `signoff stop` to stop it, `signoff logs` to view logs, and `signoff status` to check if it's running.
 
-Check proxy status:
+Check service status:
 
 ```bash
 signoff status
@@ -141,9 +141,9 @@ signoff logs
 
 The startup log should not show obvious fatal issues (for example: panic stacks, fatal exits, or repeated crash/restart messages).
 
-### 7. Verify Interception
+### 7. Verify a Protected Request
 
-Set the proxy environment variables and send a test request:
+Set the HTTP proxy environment variables and send a harmless test request covered by the approval rule:
 
 ```bash
 export HTTP_PROXY=http://127.0.0.1:17771
@@ -152,7 +152,7 @@ export HTTPS_PROXY=http://127.0.0.1:17771
 curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
 ```
 
-Expected result — the request is blocked with a `403` response containing an `approval_url`:
+Expected result: Signoff pauses the request for approval and returns a `403` response containing an `approval_url`:
 
 ```json
 {"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
@@ -160,13 +160,13 @@ Expected result — the request is blocked with a `403` response containing an `
 
 The response may include additional fields (for example `approval_status_url`, retry guidance, and polling hints).
 
-Check the proxy logs to confirm:
+Check the service logs to confirm:
 
 ```bash
 signoff logs
 ```
 
-You should see:
+The current implementation uses HTTP proxy mode, so log event names may include `proxy_*`:
 
 ```
 proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
@@ -175,7 +175,7 @@ proxy_block fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/o
 
 ### 8. Approve in Browser
 
-1. Open the `approval_url` from the block response in your browser
+1. Open the `approval_url` from the pending approval response in your browser
 2. If you land on the requests list page first, click **Open** on that request to enter the detail page
 3. Review the request details — resource, action, and timing
 4. Click **Approve with Passkey**
@@ -185,7 +185,7 @@ After approval, the original request can proceed.
 
 ### 9. Retry the Command
 
-Re-run the same curl command. Now that the approval is granted, the request passes through:
+Re-run the same curl command. Now that the approval is granted, the request proceeds:
 
 ```
 proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
@@ -194,7 +194,7 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `proxy_allow` and the absence of `APPROVAL_PENDING` on retry.
 
 > [!TIP]
-> **In practice**: The manual test above verifies that interception works. During normal use, requests from OpenClaw, Hermes, or Claude Code are intercepted automatically — you only need to approve them in the browser when prompted.
+> **In practice**: The manual test above verifies that protected requests wait for approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. You only need to approve them in the browser when prompted.
 
 ## Mobile Approval (Optional)
 
@@ -208,9 +208,9 @@ Refer to the corresponding agent documentation for IM plugin/channel configurati
 > - You must log in to the Signoff service on your phone before your first mobile approval (subsequent approvals do not require re-login).
 > - You must register a Passkey on the mobile device (see [Step 3](#3-add-a-passkey)) before your first mobile approval, or signing will fail.
 
-## Proxy Logs Explained
+## Service Logs Explained
 
-All requests passing through the proxy are logged:
+All requests handled by the local Signoff service are logged. The current implementation uses HTTP proxy mode, so technical log event names may include `proxy_*`:
 
 ```
 proxy_connect host=<host>:<port> target_host=<host> action=tunnel|mitm
@@ -227,11 +227,10 @@ Use `signoff logs` to view the logs.
 |---|---|
 | `signoff login` | Authenticate via browser OAuth |
 | `signoff whoami` | Show current login status |
-| `signoff run` | Start proxy as a background service |
-| `signoff run --foreground` | Start proxy in the current terminal |
-| `signoff stop` | Stop the background proxy service |
-| `signoff status` | Check proxy status (PID, listen address, uptime) |
-| `signoff logs` | View proxy logs |
+| `signoff run` | Start the local Signoff service |
+| `signoff stop` | Stop the local Signoff service |
+| `signoff status` | Check service status (PID, listen address, uptime) |
+| `signoff logs` | View service logs |
 | `signoff install-ca` | Install CA certificate (requires sudo) |
 | `signoff uninstall-ca` | Remove CA certificate |
 | `signoff config set <key> <value>` | Set configuration |
