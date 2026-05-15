@@ -4,13 +4,13 @@
 
 Human Signoff 提供一个本地 Signoff 服务，用于保护敏感 API 调用（如 git push、PR merge、生产部署），并在请求继续前要求通过 **Passkey 人工审批**。它在 AI Agent（OpenClaw、Hermes、Claude Code）和你的生产基础设施之间提供一层安全闸门。
 
-按以下三个阶段操作，从零完成首次审批。
+按以下步骤操作，从零完成首次审批。
 
 ## 目录
 
 - [前置条件](#前置条件)
-- [安装与注册](#安装与注册)
-- [规则配置](#规则配置)
+- [注册与配置](#注册与配置)
+- [安装 CLI](#安装-cli)
 - [完成首次审批](#完成首次审批)
 - [移动端审批（可选）](#移动端审批可选)
 - [服务日志说明](#服务日志说明)
@@ -24,9 +24,55 @@ Human Signoff 提供一个本地 Signoff 服务，用于保护敏感 API 调用�
 - 如果你计划使用 OpenClaw 或 Hermes 集成，请先确保对应 Gateway 已完成配置并处于运行状态，再继续后续步骤。
 - 如果你只使用 Claude Code，可跳过这一前置条件，直接继续下面流程。
 
-## 安装与注册
+## 注册与配置
 
-### 1. 安装 signoff CLI
+### 1. 注册账号
+
+在浏览器打开注册页面：
+
+```
+https://demo.signoff.bio/#/register
+```
+
+输入邮箱、密码和显示名称后提交。注册完成后会自动登录。
+
+### 2. 绑定 Passkey
+
+Passkey（WebAuthn）用于对审批动作进行密码学确认。打开 **Account** 页面：
+
+```
+https://demo.signoff.bio/#/account
+```
+
+在 **Authenticators** 区域点击 **Add Passkey**，输入标签（如 `My MacBook`），并完成系统弹窗确认（Touch ID / Face ID / 系统密码）。
+
+如果你使用多个浏览器或多个浏览器 profile，通常需要在执行审批的每个环境中分别绑定 Passkey。如果你的凭据提供方支持跨浏览器/跨设备同步，可能无需重复绑定即可使用。
+
+添加完成后，你应能在列表中看到该 authenticator（含使用次数和创建时间）。
+
+### 3. 配置审批规则
+
+规则用于定义哪些 API 请求在继续前需要 Signoff 审批。打开 **Rules** 页面：
+
+```
+https://demo.signoff.bio/#/rules
+```
+
+点击 **Add rule** → **Create from scratch**，然后填写以下必填字段，配置一个低门槛验证规则（无需额外 token）：
+
+| 字段 | 示例 | 说明 |
+|---|---|---|
+| Rule name（规则名称） | `GitHub PR Query Check` | 便于识别的规则名称 |
+| Platform | `github` | 规则目标平台 |
+| Hosts | `api.github.com` | 目标主机名（每行一个） |
+| Path regex pattern（路径正则） | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
+| HTTP Methods（HTTP 方法） | `GET` | 此规则保护的 HTTP 方法（每行一个） |
+
+点击 **Save** 保存。启动本地 Signoff 服务后，它会在 10 秒内拉取到新规则。
+
+## 安装 CLI
+
+### 4. 安装 signoff CLI
 
 ```bash
 curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh && bash install.sh
@@ -48,51 +94,7 @@ signoff --help
 
 如果出现 `signoff` 未找到，请先把安装目录加入 `PATH`，或重新安装到 `PATH` 目录。
 
-### 2. 注册账号
-
-在浏览器打开注册页面：
-
-```
-https://demo.signoff.bio/#/register
-```
-
-输入邮箱、密码和显示名称后提交。注册完成后会自动登录。
-
-### 3. 绑定 Passkey
-
-Passkey（WebAuthn）用于对审批动作进行密码学确认。打开 **Account** 页面：
-
-```
-https://demo.signoff.bio/#/account
-```
-
-在 **Authenticators** 区域点击 **Add Passkey**，输入标签（如 `My MacBook`），并完成系统弹窗确认（Touch ID / Face ID / 系统密码）。
-
-如果你使用多个浏览器或多个浏览器 profile，通常需要在执行审批的每个环境中分别绑定 Passkey。如果你的凭据提供方支持跨浏览器/跨设备同步，可能无需重复绑定即可使用。
-
-添加完成后，你应能在列表中看到该 authenticator（含使用次数和创建时间）。
-
-## 规则配置
-
-### 4. 配置审批规则
-
-规则用于定义哪些 API 请求在继续前需要 Signoff 审批。打开 **Rules** 页面：
-
-```
-https://demo.signoff.bio/#/rules
-```
-
-点击 **Add rule** → **Create from scratch**，然后填写以下必填字段，配置一个低门槛验证规则（无需额外 token）：
-
-| 字段 | 示例 | 说明 |
-|---|---|---|
-| Rule name（规则名称） | `GitHub PR Query Check` | 便于识别的规则名称 |
-| Platform | `github` | 规则目标平台 |
-| Hosts | `api.github.com` | 目标主机名（每行一个） |
-| Path regex pattern（路径正则） | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
-| HTTP Methods（HTTP 方法） | `GET` | 此规则保护的 HTTP 方法（每行一个） |
-
-点击 **Save** 保存。CLI 会在 10 秒内拉取到新规则。
+## 完成首次审批
 
 ### 5. 在 CLI 登录
 
@@ -107,8 +109,6 @@ signoff login
 ```bash
 signoff whoami
 ```
-
-## 完成首次审批
 
 ### 6. 启动 Signoff 服务
 
@@ -206,7 +206,7 @@ proxy_allow fingerprint=... path=/repos/octocat/Hello-World/pulls
 > **注意事项**：
 > - 审批链接必须使用 Chrome 或 Safari 等支持 WebAuthn 的浏览器打开。微信、飞书等应用的内置浏览器不支持 Passkey 签署。
 > - 首次在手机上审批前，需要先登录 Signoff 服务（后续无需重复登录）。
-> - 首次在手机上审批前，需要在该设备上绑定 Passkey（即[步骤 3](#3-绑定-passkey)），否则签署会失败。
+> - 首次在手机上审批前，需要在该设备上绑定 Passkey（即[步骤 2](#2-绑定-passkey)），否则签署会失败。
 
 ## 服务日志说明
 
