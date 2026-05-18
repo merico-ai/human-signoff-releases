@@ -50,29 +50,11 @@ https://app.signoff.bio/#/account
 
 添加完成后，你应能在列表中看到该 authenticator（含使用次数和创建时间）。
 
-### 3. 配置审批规则
-
-规则用于定义哪些 API 请求在继续前需要 Signoff 审批。打开 **Rules** 页面：
-
-```
-https://app.signoff.bio/#/rules
-```
-
-点击 **Add rule** → **Create from scratch**，然后填写以下必填字段，配置一个低门槛验证规则（无需额外 token）：
-
-| 字段 | 示例 | 说明 |
-|---|---|---|
-| Rule name（规则名称） | `GitHub PR Query Check` | 便于识别的规则名称 |
-| Platform | `github` | 规则目标平台 |
-| Hosts | `api.github.com` | 目标主机名（每行一个） |
-| Path regex pattern（路径正则） | `^/repos/[^/]+/[^/]+/pulls$` | 匹配 PR 列表查询接口（正则） |
-| HTTP Methods（HTTP 方法） | `GET` | 此规则保护的 HTTP 方法（每行一个） |
-
-点击 **Save** 保存。启动本地 Signoff 服务后，它会在 10 秒内拉取到新规则。
+新用户注册后，Signoff 会自动绑定一个内置起步规则，供 `signoff quick-start` 使用。你可以直接用它验证“保护 -> 审批 -> 重试”的完整链路，无需先手动创建规则。
 
 ## 安装 CLI
 
-### 4. 安装 signoff CLI
+### 3. 安装 signoff CLI
 
 ```bash
 curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh && bash install.sh
@@ -96,7 +78,7 @@ signoff --help
 
 ## 完成首次审批
 
-### 5. 在 CLI 登录
+### 4. 在 CLI 登录
 
 ```bash
 signoff login
@@ -110,7 +92,7 @@ signoff login
 signoff whoami
 ```
 
-### 6. 启动 Signoff 服务
+### 5. 启动 Signoff 服务
 
 ```bash
 signoff run
@@ -141,60 +123,35 @@ signoff logs
 
 启动日志中不应出现明显致命异常（例如 panic 堆栈、fatal 退出、或反复崩溃/重启日志）。
 
-### 7. 验证受保护请求
+### 6. 运行 Quick Start 验证
 
-设置 HTTP 代理环境变量，并发送一个由审批规则覆盖的无害测试请求：
+运行：
 
 ```bash
-export HTTP_PROXY=http://127.0.0.1:17771
-export HTTPS_PROXY=http://127.0.0.1:17771
-
-curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
+signoff quick-start
 ```
 
-预期结果：Signoff 会让请求等待审批，并返回一个包含 `approval_url` 的 `403` 响应：
+预期结果：CLI 会完整演示一次受保护动作的端到端流程：
 
-```json
-{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://app.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
-```
+1. 准备一个访问 `/quick-start` 的示例 Agent 动作
+2. 将该动作通过 Signoff 发送
+3. 在浏览器中等待你审批（会打印 `approval_url`）
+4. 审批通过后自动重试并成功完成
 
-实际响应中可能还会包含其他字段（例如 `approval_status_url`、重试建议和轮询提示）。
+在第 3 步中，请打开终端输出的审批链接并用 Passkey 审批。如果尚未绑定 Passkey，页面会先引导你到 **Account** 完成绑定。
 
-可通过服务日志确认：
+流程结束后，你会看到成功 recap，以及 `/quick-start` 接口返回的欢迎信息。
+
+可选日志检查：
 
 ```bash
 signoff logs
 ```
 
-当前实现使用 HTTP 代理模式，因此日志事件名中可能包含 `proxy_*`：
-
-```
-proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
-signoff_guarded fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
-```
-
-### 8. 在浏览器审批
-
-1. 在浏览器打开等待审批响应中的 `approval_url`
-2. 如果先进入的是请求列表页，请先点击该请求的 **Open** 进入详情页
-3. 检查请求详情（资源、动作、时间等）
-4. 点击 **Approve with Passkey**
-5. 完成系统 Passkey 确认（Touch ID / Face ID / 系统密码）
-
-审批后，原请求即可继续。
-
-### 9. 重试命令
-
-再次执行同一条 curl 命令。审批通过后，请求会被放行：
-
-```
-signoff_released fingerprint=... path=/repos/octocat/Hello-World/pulls
-```
-
-注意：该验证示例查询的是公共仓库接口，不需要 GitHub token。是否由 Signoff 放行应以日志中的 `signoff_released` 以及重试时不再出现 `APPROVAL_PENDING` 为准。
+审批前应看到 `signoff_guarded`，审批后应看到 `signoff_released`。
 
 > [!TIP]
-> **实际使用场景**：上述手动测试仅用于验证受保护请求会等待审批。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理，你只需在浏览器中完成审批即可。
+> **实际使用场景**：quick-start 用于验证受保护请求会等待审批，并在审批后继续执行。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理，你只需在浏览器中完成审批即可。
 
 ## 移动端审批（可选）
 
@@ -227,6 +184,7 @@ background_refresh_tick|background_refresh_ok|background_refresh_failed
 |---|---|
 | `signoff login` | 通过浏览器 OAuth 登录 |
 | `signoff whoami` | 查看当前登录状态 |
+| `signoff quick-start` | 运行引导式端到端 Signoff 验证流程 |
 | `signoff run` | 启动本地 Signoff 服务 |
 | `signoff stop` | 停止本地 Signoff 服务 |
 | `signoff status` | 查看服务状态（PID、监听地址、运行时长） |

@@ -50,29 +50,11 @@ If you use multiple browsers or browser profiles, you may need to register a Pas
 
 After adding, you should see the authenticator in the list with its usage count and creation time.
 
-### 3. Configure an Approval Rule
-
-Rules define which API requests require Signoff approval before they proceed. Go to the **Rules** page:
-
-```
-https://app.signoff.bio/#/rules
-```
-
-Click **Add rule** → **Create from scratch**, then fill these required fields for a low-friction verification rule (no extra token required):
-
-| Field | Example | Description |
-|---|---|---|
-| Rule name | `GitHub PR Query Check` | A recognizable name |
-| Platform | `github` | The platform this rule targets |
-| Hosts | `api.github.com` | Target hostnames (one per line) |
-| Path regex pattern | `^/repos/[^/]+/[^/]+/pulls$` | Match pull request list queries (regex) |
-| HTTP Methods | `GET` | HTTP methods covered by this rule (one per line) |
-
-Click **Save** when done. After you start the local Signoff service, it will pick up new rules within 10 seconds.
+When a new user account is created, Signoff automatically binds a built-in starter rule for the `signoff quick-start` flow. You can use that rule to verify the full protect-approve-retry path without manually creating a rule first.
 
 ## Install CLI
 
-### 4. Install the signoff CLI
+### 3. Install the signoff CLI
 
 ```bash
 curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh && bash install.sh
@@ -96,7 +78,7 @@ If `signoff` is not found, add the install directory to `PATH` or reinstall to a
 
 ## First Approval
 
-### 5. Login from CLI
+### 4. Login from CLI
 
 ```bash
 signoff login
@@ -110,7 +92,7 @@ Check login status:
 signoff whoami
 ```
 
-### 6. Start the Signoff Service
+### 5. Start the Signoff Service
 
 ```bash
 signoff run
@@ -141,60 +123,35 @@ signoff logs
 
 The startup log should not show obvious fatal issues (for example: panic stacks, fatal exits, or repeated crash/restart messages).
 
-### 7. Verify a Protected Request
+### 6. Run the Quick Start Verification
 
-Set the HTTP proxy environment variables and send a harmless test request covered by the approval rule:
+Run:
 
 ```bash
-export HTTP_PROXY=http://127.0.0.1:17771
-export HTTPS_PROXY=http://127.0.0.1:17771
-
-curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&1
+signoff quick-start
 ```
 
-Expected result: Signoff pauses the request for approval and returns a `403` response containing an `approval_url`:
+Expected result: the CLI walks through an end-to-end protected action flow:
 
-```json
-{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://app.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
-```
+1. Prepare a sample Agent action for `/quick-start`
+2. Send it through Signoff
+3. Wait for your approval in browser (with an `approval_url`)
+4. Retry automatically after approval and finish successfully
 
-The response may include additional fields (for example `approval_status_url`, retry guidance, and polling hints).
+During step 3, open the printed approval link and approve with Passkey. If Passkey is not bound yet, the page will guide you to **Account** first.
 
-Check the service logs to confirm:
+At the end, you should see a successful recap plus the welcome message returned by the `/quick-start` endpoint.
+
+Optional log check:
 
 ```bash
 signoff logs
 ```
 
-The current implementation uses HTTP proxy mode, so log event names may include `proxy_*`:
-
-```
-proxy_request method=GET host=api.github.com path=/repos/octocat/Hello-World/pulls query=state=open
-signoff_guarded fingerprint=... status=pending reason=APPROVAL_PENDING path=/repos/octocat/Hello-World/pulls
-```
-
-### 8. Approve in Browser
-
-1. Open the `approval_url` from the pending approval response in your browser
-2. If you land on the requests list page first, click **Open** on that request to enter the detail page
-3. Review the request details — resource, action, and timing
-4. Click **Approve with Passkey**
-5. Complete the system Passkey prompt (Touch ID / Face ID / system password)
-
-After approval, the original request can proceed.
-
-### 9. Retry the Command
-
-Re-run the same curl command. Now that the approval is granted, the request proceeds:
-
-```
-signoff_released fingerprint=... path=/repos/octocat/Hello-World/pulls
-```
-
-Note: this verification example queries a public repository endpoint, so no GitHub token is required. Signoff success is indicated by `signoff_released` and the absence of `APPROVAL_PENDING` on retry.
+You should see `signoff_guarded` before approval and `signoff_released` after approval.
 
 > [!TIP]
-> **In practice**: The manual test above verifies that protected requests wait for approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. You only need to approve them in the browser when prompted.
+> **In practice**: The quick-start test verifies that protected requests wait for approval and then continue after approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. You only need to approve them in the browser when prompted.
 
 ## Mobile Approval (Optional)
 
@@ -227,6 +184,7 @@ Use `signoff logs` to view the logs.
 |---|---|
 | `signoff login` | Authenticate via browser OAuth |
 | `signoff whoami` | Show current login status |
+| `signoff quick-start` | Run the guided end-to-end Signoff verification flow |
 | `signoff run` | Start the local Signoff service |
 | `signoff stop` | Stop the local Signoff service |
 | `signoff status` | Check service status (PID, listen address, uptime) |
