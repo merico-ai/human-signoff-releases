@@ -31,7 +31,7 @@ Human Signoff 提供一个本地 Signoff 服务，用于保护敏感 API 调用�
 在浏览器打开注册页面：
 
 ```
-https://demo.signoff.bio/#/register
+https://app.signoff.bio/#/register
 ```
 
 输入邮箱、密码和显示名称后提交。注册完成后会自动登录。
@@ -41,7 +41,7 @@ https://demo.signoff.bio/#/register
 Passkey（WebAuthn）用于对审批动作进行密码学确认。打开 **Account** 页面：
 
 ```
-https://demo.signoff.bio/#/account
+https://app.signoff.bio/#/account
 ```
 
 在 **Authenticators** 区域点击 **Add Passkey**，输入标签（如 `My MacBook`），并完成系统弹窗确认（Touch ID / Face ID / 系统密码）。
@@ -55,7 +55,7 @@ https://demo.signoff.bio/#/account
 规则用于定义哪些 API 请求在继续前需要 Signoff 审批。打开 **Rules** 页面：
 
 ```
-https://demo.signoff.bio/#/rules
+https://app.signoff.bio/#/rules
 ```
 
 点击 **Add rule** → **Create from scratch**，然后填写以下必填字段，配置一个低门槛验证规则（无需额外 token）：
@@ -155,7 +155,7 @@ curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&
 预期结果：Signoff 会让请求等待审批，并返回一个包含 `approval_url` 的 `403` 响应：
 
 ```json
-{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
+{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://app.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
 ```
 
 实际响应中可能还会包含其他字段（例如 `approval_status_url`、重试建议和轮询提示）。

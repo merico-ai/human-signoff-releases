@@ -31,7 +31,7 @@ Follow the steps below to go from zero to your first approved request.
 Open the registration page in your browser:
 
 ```
-https://demo.signoff.bio/#/register
+https://app.signoff.bio/#/register
 ```
 
 Enter your email, password, and display name, then submit. After registration, you'll be logged in automatically.
@@ -41,7 +41,7 @@ Enter your email, password, and display name, then submit. After registration, y
 Passkey (WebAuthn) is used to cryptographically confirm approval actions. Go to the **Account** page:
 
 ```
-https://demo.signoff.bio/#/account
+https://app.signoff.bio/#/account
 ```
 
 In the **Authenticators** section, click **Add Passkey**, enter a label (e.g., "My MacBook"), and complete the system prompt (Touch ID / Face ID / system password).
@@ -55,7 +55,7 @@ After adding, you should see the authenticator in the list with its usage count 
 Rules define which API requests require Signoff approval before they proceed. Go to the **Rules** page:
 
 ```
-https://demo.signoff.bio/#/rules
+https://app.signoff.bio/#/rules
 ```
 
 Click **Add rule** → **Create from scratch**, then fill these required fields for a low-friction verification rule (no extra token required):
@@ -155,7 +155,7 @@ curl -sv "https://api.github.com/repos/octocat/Hello-World/pulls?state=open" 2>&
 Expected result: Signoff pauses the request for approval and returns a `403` response containing an `approval_url`:
 
 ```json
-{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://demo.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
+{"error":{"code":"APPROVAL_PENDING","message":"This command requires human approval..."},"approval_url":"https://app.signoff.bio/#/requests/pap_xxx","approval_request_id":"pap_xxx","status":"pending"}
 ```
 
 The response may include additional fields (for example `approval_status_url`, retry guidance, and polling hints).
