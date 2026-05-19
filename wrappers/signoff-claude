@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Human Signoff Claude Code wrapper.
+# This script is installed from the human-signoff-releases main branch and
+# should stay compatible with supported signoff CLI versions.
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "Error: claude command not found in PATH." >&2
+  exit 127
+fi
+
+WRAPPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -x "${WRAPPER_DIR}/signoff" ]]; then
+  export PATH="${WRAPPER_DIR}:${PATH}"
+fi
+
+if ! command -v signoff >/dev/null 2>&1; then
+  echo "Error: signoff command not found in PATH." >&2
+  echo "Install signoff first, or place signoff next to this wrapper." >&2
+  exit 127
+fi
+
+PROXY_HOST="${SIGNOFF_CLI_LISTEN_HOST:-127.0.0.1}"
+PROXY_PORT="${SIGNOFF_CLI_LISTEN_PORT:-17771}"
+PROXY_URL="http://${PROXY_HOST}:${PROXY_PORT}"
+
+append_no_proxy() {
+  local current="$1"
+  if [[ -n "$current" ]]; then
+    printf "%s,127.0.0.1,localhost" "$current"
+  else
+    printf "127.0.0.1,localhost"
+  fi
+}
+
+export HTTP_PROXY="$PROXY_URL"
+export HTTPS_PROXY="$PROXY_URL"
+export http_proxy="$PROXY_URL"
+export https_proxy="$PROXY_URL"
+export NO_PROXY="$(append_no_proxy "${NO_PROXY:-}")"
+export no_proxy="$(append_no_proxy "${no_proxy:-}")"
+
+PROMPT_TEXT='When a command returns JSON from the local proxy client where `error.code` is `APPROVAL_PENDING`, and the payload includes `approval_request_id` and `approval_url`, treat this as a required continuation workflow, not a terminal failure. In the same turn, show the `approval_url` to the user, clearly say the action is blocked pending approval, and proactively run `signoff wait --request-id "<approval_request_id>"` to wait for the user to approve. Wait for that command to complete; once it returns successfully, retry the original blocked command using the exact argv from the first failed command. Do not stop after telling the user to approve, do not wait for the user to say approval is complete, do not hand-roll polling logic, do not rewrite the original command, and do not retry before `signoff wait` returns successfully. This rule overrides task-specific habits or skills that would otherwise pause after showing the approval link. If the helper reports `rejected`, `expired`, or timeout, stop and tell the user.'
+
+if [[ "${SIGNOFF_CLI_DISABLE_CLAUDE_HELPER_PROMPT:-0}" == "1" ]]; then
+  exec claude "$@"
+fi
+
+exec claude --append-system-prompt "$PROMPT_TEXT" "$@"

@@ -64,6 +64,7 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 安装脚本会引导你完成：
 
 - 二进制安装（由安装脚本交互选择路径：`/usr/local/bin/signoff`、`~/.local/bin/signoff`、`./signoff`，或你输入的自定义目录）
+- Claude Code wrapper 安装为 `signoff-claude`，与 `signoff` 放在同一目录（可选）
 - CA 证书安装（用于 HTTP 代理模式下受保护的 HTTPS 请求，可选）
 - AI Agent 插件安装（可选）
 
@@ -152,7 +153,7 @@ signoff logs
 审批前应看到 `signoff_guarded`，审批后应看到 `signoff_released`。
 
 > [!TIP]
-> **实际使用场景**：quick-start 用于验证受保护请求会等待审批，并在审批后继续执行。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理，你只需在浏览器中完成审批即可。
+> **实际使用场景**：quick-start 用于验证受保护请求会等待审批，并在审批后继续执行。日常使用中，OpenClaw、Hermes 或 Claude Code 发起的受保护请求会由本地 Signoff 服务自动处理。Claude Code 请使用 `signoff-claude` 启动，而不是直接运行 `claude`，这样 Signoff 代理和等待审批的 prompt 会自动生效。你只需在浏览器中完成受保护操作的审批即可。
 
 ## 移动端审批（可选）
 

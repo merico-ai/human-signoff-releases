@@ -66,6 +66,7 @@ curl -fsSL -o install.sh https://raw.githubusercontent.com/merico-ai/human-signo
 The installer will guide you through:
 
 - Binary installation (installer-selected path: `/usr/local/bin/signoff`, `~/.local/bin/signoff`, `./signoff`, or a custom directory you enter)
+- Claude Code wrapper installation as `signoff-claude` in the same directory as `signoff` (optional)
 - CA certificate installation for protected HTTPS requests in HTTP proxy mode (optional)
 - AI agent plugin installation (optional)
 
@@ -154,7 +155,7 @@ signoff logs
 You should see `signoff_guarded` before approval and `signoff_released` after approval.
 
 > [!TIP]
-> **In practice**: The quick-start test verifies that protected requests wait for approval and then continue after approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. You only need to approve them in the browser when prompted.
+> **In practice**: The quick-start test verifies that protected requests wait for approval and then continue after approval. During normal use, protected requests from OpenClaw, Hermes, or Claude Code are handled automatically by the local Signoff service. For Claude Code, start it with `signoff-claude` instead of `claude` so the Signoff proxy and approval-wait prompt are applied automatically. You only need to approve protected actions in the browser when prompted.
 
 ## Mobile Approval (Optional)
 

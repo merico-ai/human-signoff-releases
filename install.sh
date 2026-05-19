@@ -12,6 +12,7 @@ OPENCLAW_PLUGIN_REPO="merico-ai/openclaw-human-signoff"
 HERMES_PLUGIN_DIR_NAME="hermes-plugin-human-signoff-approval"
 OPENCLAW_PLUGIN_DIR="${HOME}/.openclaw/extensions/human-signoff-approval"
 BINARY_NAME="signoff"
+CLAUDE_WRAPPER_NAME="signoff-claude"
 INSTALL_DIR="/usr/local/bin"
 CACHE_DIR="${HOME}/.cache/signoff"
 
@@ -281,6 +282,50 @@ install_binary() {
   fi
 
   rm -rf "$extract_dir"
+}
+
+# ─── Download and install Claude Code wrapper ────────────────────────────
+install_claude_wrapper() {
+  local wrapper_ref="${SIGNOFF_WRAPPER_REF:-main}"
+  local wrapper_url="https://raw.githubusercontent.com/${RELEASES_REPO}/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}"
+  local wrapper_path="${INSTALL_DIR}/${CLAUDE_WRAPPER_NAME}"
+  local tmp_wrapper
+
+  if ! command -v claude &>/dev/null; then
+    warn "Claude Code CLI not found. You can still install ${CLAUDE_WRAPPER_NAME} now and use it after installing Claude Code."
+  fi
+
+  if [[ -x "$wrapper_path" ]]; then
+    printf "${CLAUDE_WRAPPER_NAME} already installed at ${wrapper_path}. Update from ${wrapper_ref}? [Y/n] "
+  else
+    printf "Install Claude Code wrapper to ${wrapper_path} from ${wrapper_ref}? [Y/n] "
+  fi
+  local answer
+  read -r answer
+  if [[ -n "$answer" && ! "$answer" =~ ^[Yy] ]]; then
+    return 0
+  fi
+
+  tmp_wrapper="$(mktemp)"
+  printf "  Downloading ${CLAUDE_WRAPPER_NAME} ... "
+  if curl -fsSL --connect-timeout 10 --max-time 60 "$wrapper_url" -o "$tmp_wrapper"; then
+    printf "${GREEN}done${NC}\n"
+  else
+    printf "${YELLOW}FAILED${NC}\n"
+    rm -f "$tmp_wrapper"
+    warn "Could not download ${CLAUDE_WRAPPER_NAME} from ${wrapper_url}"
+    warn "Skipping Claude Code wrapper installation."
+    return 0
+  fi
+
+  chmod +x "$tmp_wrapper"
+  if [[ -w "$INSTALL_DIR" ]]; then
+    cp "$tmp_wrapper" "$wrapper_path"
+  else
+    sudo cp "$tmp_wrapper" "$wrapper_path"
+  fi
+  rm -f "$tmp_wrapper"
+  info "Installed ${wrapper_path}"
 }
 
 # ─── Check plugin installed for a given agent CLI ────────────────────────
@@ -652,9 +697,13 @@ fi
 
 install_binary "$TAG"
 
-# ─── Step 2: Optional Hermes plugin ──────────────────────────────────────
+# ─── Step 2: Optional Claude Code wrapper ────────────────────────────────
+header "Step 2: Claude Code Wrapper"
+install_claude_wrapper
+
+# ─── Step 3: Optional Hermes plugin ──────────────────────────────────────
 HERMES_INSTALLED=false
-header "Step 2: Hermes Approval Plugin"
+header "Step 3: Hermes Approval Plugin"
 
 if ! command -v hermes &>/dev/null; then
   warn "Hermes not found. To install the Hermes plugin, install Hermes first."
@@ -683,9 +732,9 @@ if [[ "$HERMES_INSTALLED" == true ]]; then
   configure_gateway_proxy "Hermes"
 fi
 
-# ─── Step 3: Optional OpenClaw plugin ───────────────────────────────────
+# ─── Step 4: Optional OpenClaw plugin ───────────────────────────────────
 OPENCLAW_INSTALLED=false
-header "Step 3: OpenClaw Approval Plugin"
+header "Step 4: OpenClaw Approval Plugin"
 
 if ! command -v openclaw &>/dev/null; then
   warn "OpenClaw not found. To install the OpenClaw plugin, install OpenClaw first."
@@ -714,8 +763,8 @@ if [[ "$OPENCLAW_INSTALLED" == true ]]; then
   configure_gateway_proxy "OpenClaw"
 fi
 
-# ─── Step 4: Install CA ──────────────────────────────────────────────────
-header "Step 4: CA Certificate"
+# ─── Step 5: Install CA ──────────────────────────────────────────────────
+header "Step 5: CA Certificate"
 run_install_ca
 warn_signoff_data_permission_issues
 
@@ -726,4 +775,5 @@ printf "${GREEN}╚════════════════════�
 printf "\nQuick start:\n"
 printf "  1. ${CYAN}signoff login${NC}\n"
 printf "  2. ${CYAN}signoff run${NC}              (start the Signoff service)\n"
+printf "  3. ${CYAN}signoff-claude${NC}           (start Claude Code through Signoff)\n"
 printf "\nFor more: ${CYAN}https://github.com/${RELEASES_REPO}${NC}\n"
