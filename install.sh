@@ -287,7 +287,8 @@ install_binary() {
 # ─── Download and install Claude Code wrapper ────────────────────────────
 install_claude_wrapper() {
   local wrapper_ref="${SIGNOFF_WRAPPER_REF:-main}"
-  local wrapper_url="https://raw.githubusercontent.com/${RELEASES_REPO}/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}"
+  local wrapper_url="${SIGNOFF_WRAPPER_URL:-https://raw.githubusercontent.com/${RELEASES_REPO}/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}}"
+  local wrapper_fallback_url="https://github.com/${RELEASES_REPO}/raw/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}"
   local wrapper_path="${INSTALL_DIR}/${CLAUDE_WRAPPER_NAME}"
   local tmp_wrapper
 
@@ -307,15 +308,51 @@ install_claude_wrapper() {
   fi
 
   tmp_wrapper="$(mktemp)"
-  printf "  Downloading ${CLAUDE_WRAPPER_NAME} ... "
-  if curl -fsSL --connect-timeout 10 --max-time 60 "$wrapper_url" -o "$tmp_wrapper"; then
-    printf "${GREEN}done${NC}\n"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local local_wrapper="${script_dir}/wrappers/${CLAUDE_WRAPPER_NAME}"
+
+  if [[ -f "$local_wrapper" ]]; then
+    printf "  Using local ${local_wrapper}\n"
+    cp "$local_wrapper" "$tmp_wrapper"
   else
-    printf "${YELLOW}FAILED${NC}\n"
-    rm -f "$tmp_wrapper"
-    warn "Could not download ${CLAUDE_WRAPPER_NAME} from ${wrapper_url}"
-    warn "Skipping Claude Code wrapper installation."
-    return 0
+    printf "  Downloading ${CLAUDE_WRAPPER_NAME} from ${wrapper_url} ... "
+    if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 180 "$wrapper_url" -o "$tmp_wrapper"; then
+      printf "${GREEN}done${NC}\n"
+    else
+      printf "${YELLOW}FAILED${NC}\n"
+      if [[ -z "${SIGNOFF_WRAPPER_URL:-}" ]]; then
+        printf "  Retrying via ${wrapper_fallback_url} ... "
+        if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 180 "$wrapper_fallback_url" -o "$tmp_wrapper"; then
+          printf "${GREEN}done${NC}\n"
+        else
+          printf "${YELLOW}FAILED${NC}\n"
+          rm -f "$tmp_wrapper"
+          warn "Could not download ${CLAUDE_WRAPPER_NAME} from either:"
+          warn "  ${wrapper_url}"
+          warn "  ${wrapper_fallback_url}"
+          printf "Continue installation without the Claude Code wrapper? [y/N] "
+          local continue_answer
+          read -r continue_answer
+          if [[ "$continue_answer" =~ ^[Yy] ]]; then
+            warn "Continuing without ${CLAUDE_WRAPPER_NAME}."
+            return 0
+          fi
+          error "Installation aborted because ${CLAUDE_WRAPPER_NAME} could not be installed."
+        fi
+      else
+        rm -f "$tmp_wrapper"
+        warn "Could not download ${CLAUDE_WRAPPER_NAME} from ${wrapper_url}"
+        printf "Continue installation without the Claude Code wrapper? [y/N] "
+        local continue_answer
+        read -r continue_answer
+        if [[ "$continue_answer" =~ ^[Yy] ]]; then
+          warn "Continuing without ${CLAUDE_WRAPPER_NAME}."
+          return 0
+        fi
+        error "Installation aborted because ${CLAUDE_WRAPPER_NAME} could not be installed."
+      fi
+    fi
   fi
 
   chmod +x "$tmp_wrapper"
