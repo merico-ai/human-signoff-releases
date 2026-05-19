@@ -46,11 +46,14 @@ https://app.signoff.bio/#/account
 
 In the **Authenticators** section, click **Add Passkey**, enter a label (e.g., "My MacBook"), and complete the system prompt (Touch ID / Face ID / system password).
 
-If you use multiple browsers or browser profiles, you may need to register a Passkey in each one where approvals are performed. If your credential provider syncs passkeys across browsers/devices, it may already be available without re-registration.
-
 After adding, you should see the authenticator in the list with its usage count and creation time.
 
-When a new user account is created, Signoff automatically binds a built-in starter rule for the `signoff quick-start` flow. You can use that rule to verify the full protect-approve-retry path without manually creating a rule first.
+> [!TIP]
+> If you use multiple browsers on multiple devices, you may need to register a Passkey in **EACH** one where approvals are performed. For example, if you need to [approve requests on mobile devices](#mobile-approval-optional), you must log in via a mobile browser and bind your mobile Passkey to Signoff. If your credential provider syncs passkeys across browsers/devices, it may already be available without re-registration.
+
+---
+
+When a new user account is created, Signoff automatically binds a built-in starter rule for the `signoff quick-start` flow. You can use that rule to experience the full journey after installing signoff CLI later.
 
 ## Install CLI
 
