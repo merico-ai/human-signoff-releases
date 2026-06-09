@@ -7,6 +7,7 @@ set -euo pipefail
 #   bash <(curl -fsSL https://raw.githubusercontent.com/merico-ai/human-signoff-releases/main/install.sh)
 
 RELEASES_REPO="merico-ai/human-signoff-releases"
+DOWNLOADS_BASE_URL="${SIGNOFF_DOWNLOADS_BASE_URL:-https://downloads.signoff.bio}"
 HERMES_PLUGIN_REPO="merico-ai/hermes-plugin-human-signoff-approval"
 OPENCLAW_PLUGIN_REPO="merico-ai/openclaw-human-signoff"
 HERMES_PLUGIN_DIR_NAME="hermes-plugin-human-signoff-approval"
@@ -57,6 +58,102 @@ get_latest_tag() {
   fi
   printf "${GREEN}${tag}${NC}\n" >&2
   echo "$tag"
+}
+
+get_latest_tag_from_mirror() {
+  printf "  Fetching latest release info from ${DOWNLOADS_BASE_URL}... " >&2
+  local tag
+  tag=$(curl -fsSL --connect-timeout 10 --max-time 30 \
+    "${DOWNLOADS_BASE_URL}/releases/latest.txt" | tr -d '[:space:]') || {
+    printf "FAILED\n" >&2
+    return 1
+  }
+  if [[ -z "$tag" ]]; then
+    printf "FAILED\n" >&2
+    return 1
+  fi
+  printf "${GREEN}${tag}${NC}\n" >&2
+  echo "$tag"
+}
+
+fetch_latest_tag() {
+  get_latest_tag || get_latest_tag_from_mirror
+}
+
+download_file() {
+  local label="$1"
+  local destination="$2"
+  shift 2
+
+  local url
+  local tmp_destination="${destination}.tmp"
+  rm -f "$tmp_destination"
+  for url in "$@"; do
+    printf "  Downloading %s from %s ... " "$label" "$url"
+    if curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "$tmp_destination"; then
+      mv "$tmp_destination" "$destination"
+      printf "${GREEN}done${NC}\n"
+      return 0
+    fi
+    printf "${YELLOW}FAILED${NC}\n"
+    rm -f "$tmp_destination"
+  done
+  return 1
+}
+
+verify_archive_checksum() {
+  local checksum_path="$1"
+  local zip_path="$2"
+  local zip_name="$3"
+
+  local expected
+  expected="$(awk -v file="$zip_name" '$2 == file { print $1 }' "$checksum_path" | head -n 1)"
+  if [[ -z "$expected" ]]; then
+    warn "Checksum entry not found for ${zip_name}"
+    return 1
+  fi
+
+  local actual
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$zip_path" | awk '{ print $1 }')"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$zip_path" | awk '{ print $1 }')"
+  else
+    warn "Neither shasum nor sha256sum is available for checksum verification."
+    return 1
+  fi
+
+  [[ "$actual" == "$expected" ]]
+}
+
+download_verified_archive() {
+  local label="$1"
+  local destination="$2"
+  local checksum_path="$3"
+  shift 3
+
+  local url
+  local tmp_destination="${destination}.tmp"
+  rm -f "$tmp_destination"
+  for url in "$@"; do
+    printf "  Downloading %s from %s ... " "$label" "$url"
+    if curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "$tmp_destination"; then
+      mv "$tmp_destination" "$destination"
+      printf "${GREEN}done${NC}\n"
+      printf "  Verifying checksum... "
+      if verify_archive_checksum "$checksum_path" "$destination" "$label"; then
+        printf "${GREEN}done${NC}\n"
+        return 0
+      fi
+      printf "${YELLOW}FAILED${NC}\n"
+      warn "Downloaded ${label} failed checksum verification."
+      rm -f "$destination"
+    else
+      printf "${YELLOW}FAILED${NC}\n"
+      rm -f "$tmp_destination"
+    fi
+  done
+  return 1
 }
 
 # ─── Resolve install directory ───────────────────────────────────────────
@@ -227,22 +324,39 @@ install_binary() {
 
   local zip_name="signoff-cli-${tag}-${GOOS}-${GOARCH}.zip"
   local zip_path="${CACHE_DIR}/${zip_name}"
+  local checksum_path="${CACHE_DIR}/SHA256SUMS-${tag}"
+  local github_base_url="https://github.com/${RELEASES_REPO}/releases/download/${tag}"
+  local downloads_base_url="${DOWNLOADS_BASE_URL}/releases/download/${tag}"
+
+  mkdir -p "$CACHE_DIR"
+  if ! download_file "SHA256SUMS" "$checksum_path" \
+      "${github_base_url}/SHA256SUMS" \
+      "${downloads_base_url}/SHA256SUMS"; then
+    error "Could not download SHA256SUMS from GitHub or ${DOWNLOADS_BASE_URL}."
+  fi
 
   if [[ -f "$zip_path" ]]; then
-    printf "  Using cached ${zip_name}\n"
+    if verify_archive_checksum "$checksum_path" "$zip_path" "$zip_name"; then
+      printf "  Using cached ${zip_name}\n"
+    else
+      warn "Cached ${zip_name} failed checksum verification; downloading a fresh copy."
+      rm -f "$zip_path"
+    fi
+  fi
+
+  if [[ -f "$zip_path" ]]; then
+    :
   else
-    printf "  Downloading ${zip_name} ... "
-    mkdir -p "$CACHE_DIR"
-    curl -fsSL --connect-timeout 10 --max-time 120 \
-      "https://github.com/${RELEASES_REPO}/releases/download/${tag}/${zip_name}" \
-      -o "${zip_path}" && printf "${GREEN}done${NC}\n" || {
-      printf "${YELLOW}FAILED${NC}\n"
+    if ! download_verified_archive "$zip_name" "$zip_path" "$checksum_path" \
+        "${github_base_url}/${zip_name}" \
+        "${downloads_base_url}/${zip_name}"; then
       error "Download failed. Possible causes:
       - Network cannot reach github.com
+      - Network cannot reach ${DOWNLOADS_BASE_URL}
       - Release ${tag} does not exist in ${RELEASES_REPO}
       - The zip file for ${GOOS}/${GOARCH} is missing
     Try specifying a tag manually, or check https://github.com/${RELEASES_REPO}/releases"
-    }
+    fi
   fi
 
   printf "  Extracting... "
@@ -289,6 +403,7 @@ install_claude_wrapper() {
   local wrapper_ref="${SIGNOFF_WRAPPER_REF:-main}"
   local wrapper_url="${SIGNOFF_WRAPPER_URL:-https://raw.githubusercontent.com/${RELEASES_REPO}/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}}"
   local wrapper_fallback_url="https://github.com/${RELEASES_REPO}/raw/${wrapper_ref}/wrappers/${CLAUDE_WRAPPER_NAME}"
+  local wrapper_downloads_url="${DOWNLOADS_BASE_URL}/wrappers/${CLAUDE_WRAPPER_NAME}"
   local wrapper_path="${INSTALL_DIR}/${CLAUDE_WRAPPER_NAME}"
   local tmp_wrapper
 
@@ -325,12 +440,15 @@ install_claude_wrapper() {
         printf "  Retrying via ${wrapper_fallback_url} ... "
         if curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 180 "$wrapper_fallback_url" -o "$tmp_wrapper"; then
           printf "${GREEN}done${NC}\n"
+        elif curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 20 --max-time 180 "$wrapper_downloads_url" -o "$tmp_wrapper"; then
+          printf "${GREEN}done${NC}\n"
         else
           printf "${YELLOW}FAILED${NC}\n"
           rm -f "$tmp_wrapper"
           warn "Could not download ${CLAUDE_WRAPPER_NAME} from either:"
           warn "  ${wrapper_url}"
           warn "  ${wrapper_fallback_url}"
+          warn "  ${wrapper_downloads_url}"
           printf "Continue installation without the Claude Code wrapper? [y/N] "
           local continue_answer
           read -r continue_answer
@@ -727,7 +845,7 @@ if [[ -n "$tag_input" ]]; then
   TAG="$tag_input"
   info "Using tag: ${TAG}"
 else
-  TAG="$(get_latest_tag)" || {
+  TAG="$(fetch_latest_tag)" || {
     error "Could not determine latest release. Re-run and specify a tag manually."
   }
 fi
