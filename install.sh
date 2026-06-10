@@ -383,16 +383,42 @@ install_binary() {
   read -r answer
 
   if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
+    local installed_binary="${INSTALL_DIR}/${BINARY_NAME}"
     if [[ -w "$INSTALL_DIR" ]]; then
-      cp "$binary_src" "${INSTALL_DIR}/${BINARY_NAME}"
+      cp "$binary_src" "$installed_binary"
     else
-      sudo cp "$binary_src" "${INSTALL_DIR}/${BINARY_NAME}"
+      sudo cp "$binary_src" "$installed_binary"
     fi
-    info "Installed ${INSTALL_DIR}/${BINARY_NAME}"
+    info "Installed ${installed_binary}"
   else
-    cp "$binary_src" "./${BINARY_NAME}"
-    info "Binary saved to ${PWD}/${BINARY_NAME}"
-    warn "Install later: sudo cp ${PWD}/${BINARY_NAME} ${INSTALL_DIR}/${BINARY_NAME}"
+    local installed_binary="${PWD}/${BINARY_NAME}"
+    cp "$binary_src" "$installed_binary"
+    info "Binary saved to ${installed_binary}"
+    warn "Install later: sudo cp ${installed_binary} ${INSTALL_DIR}/${BINARY_NAME}"
+  fi
+
+  if [[ "$IS_MACOS" == true ]] && command -v xattr >/dev/null 2>&1; then
+    if xattr -p com.apple.quarantine "$installed_binary" >/dev/null 2>&1; then
+      xattr -d com.apple.quarantine "$installed_binary" 2>/dev/null \
+        || sudo xattr -d com.apple.quarantine "$installed_binary" 2>/dev/null \
+        || true
+    fi
+  fi
+
+  printf "  Verifying installed signoff... "
+  if "$installed_binary" version >/dev/null 2>&1; then
+    printf "${GREEN}done${NC}\n"
+  else
+    printf "${YELLOW}FAILED${NC}\n"
+    warn "Installed signoff could not run."
+    if [[ "$IS_MACOS" == true ]]; then
+      warn "Run diagnostics:"
+      warn "  xattr -l \"${installed_binary}\""
+      warn "  codesign --verify --strict --verbose=4 \"${installed_binary}\""
+      warn "  spctl --assess --type execute --verbose=4 \"${installed_binary}\""
+    fi
+    rm -rf "$extract_dir"
+    error "Installation aborted because the installed signoff binary failed verification."
   fi
 
   rm -rf "$extract_dir"
